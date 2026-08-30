@@ -1,0 +1,11 @@
+# 数据与构建产物
+data/
+/dist/
+
+# 第三方许可证文本（Docker 构建时生成，不进仓库）
+third_party/
+web/licenses.txt
+
+# 其他
+*.log
+.DS_Store
