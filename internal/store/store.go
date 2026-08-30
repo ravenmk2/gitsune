@@ -48,7 +48,6 @@ func (s *Store) Close() error {
 func (s *Store) SeedAdmin(password string) error {
 	if password == "" {
 		password = "admin123"
-		logrus.Warn("GITSUNE_ADMIN_PASSWORD not set; built-in admin uses default password admin123, change it as soon as possible")
 	}
 	var count int
 	if err := s.db.Get(&count, `SELECT COUNT(*) FROM user WHERE username = ?`, "admin"); err != nil {

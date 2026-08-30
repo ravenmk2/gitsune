@@ -15,6 +15,8 @@
       </el-select>
       <el-button type="primary" :icon="Search" @click="onSearch">Search</el-button>
       <el-button type="success" :icon="Plus" @click="collectVisible = true">Collect Repo</el-button>
+      <el-button :icon="Download" @click="exportVisible = true">Export</el-button>
+      <el-button v-if="isAdmin" :icon="Upload" @click="importVisible = true">Import</el-button>
     </div>
 
     <el-table v-loading="loading" :data="items" border stripe>
@@ -73,15 +75,53 @@
         <el-button type="primary" :loading="collecting" @click="onCollect">Submit</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="exportVisible" title="Export Repos" width="480px">
+      <el-checkbox-group v-model="exportPlatforms">
+        <el-checkbox value="github">GitHub</el-checkbox>
+        <el-checkbox value="gitlab">GitLab</el-checkbox>
+        <el-checkbox value="gitee">Gitee</el-checkbox>
+      </el-checkbox-group>
+      <template #footer>
+        <el-button @click="exportVisible = false">Cancel</el-button>
+        <el-button type="primary" :loading="exporting" :disabled="exportPlatforms.length === 0" @click="onExport">
+          Export
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="importVisible" title="Import Repos" width="520px" @closed="resetImport">
+      <div class="import-section">
+        <input ref="fileInput" type="file" accept=".json" @change="onFileChange" />
+        <div v-if="importSummary.length" class="import-summary">
+          <el-tag v-for="s in importSummary" :key="s.platform" effect="plain">{{ s.platform }}: {{ s.count }}</el-tag>
+        </div>
+      </div>
+      <el-radio-group v-model="importMode" class="import-section">
+        <el-radio value="incremental">Incremental (merge &amp; update)</el-radio>
+        <el-radio value="overwrite">Overwrite (replace all)</el-radio>
+      </el-radio-group>
+      <el-alert
+        v-if="importMode === 'overwrite'"
+        type="error"
+        title="All existing repos will be deleted and replaced."
+        :closable="false"
+        show-icon
+      />
+      <template #footer>
+        <el-button @click="importVisible = false">Cancel</el-button>
+        <el-button type="primary" :loading="importing" :disabled="!importData" @click="onImport">Import</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, Plus } from '@element-plus/icons-vue'
+import { Search, Plus, Download, Upload } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
-import { listRepos, collectRepo, refreshRepo, deleteRepo } from '../api'
+import { listRepos, collectRepo, refreshRepo, deleteRepo, exportRepos, importRepos } from '../api'
 import { useUser } from '../stores/user'
 
 const { isAdmin } = useUser()
@@ -96,6 +136,23 @@ const loading = ref(false)
 const collectVisible = ref(false)
 const collectUrl = ref('')
 const collecting = ref(false)
+
+const exportVisible = ref(false)
+const exportPlatforms = ref(['github', 'gitlab', 'gitee'])
+const exporting = ref(false)
+
+const importVisible = ref(false)
+const importMode = ref('incremental')
+const importData = ref(null)
+const importing = ref(false)
+const fileInput = ref(null)
+const importSummary = computed(() => {
+  const platforms = importData.value?.platforms
+  if (!platforms || typeof platforms !== 'object') return []
+  return Object.entries(platforms)
+    .filter(([, repos]) => Array.isArray(repos))
+    .map(([platform, repos]) => ({ platform, count: repos.length }))
+})
 
 function formatTime(t) {
   return t ? dayjs(t).format('YYYY-MM-DD HH:mm:ss') : '-'
@@ -180,6 +237,95 @@ async function onDelete(row) {
   }
 }
 
+async function onExport() {
+  exporting.value = true
+  try {
+    const data = await exportRepos(exportPlatforms.value)
+    const count = Object.values(data?.platforms || {}).reduce(
+      (sum, repos) => sum + (Array.isArray(repos) ? repos.length : 0),
+      0
+    )
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `gitsune-repos-${dayjs().format('YYYYMMDD-HHmmss')}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    ElMessage.success(`Exported ${count} repos`)
+    exportVisible.value = false
+  } catch {
+    // interceptor already shows the error
+  } finally {
+    exporting.value = false
+  }
+}
+
+async function onFileChange(event) {
+  const file = event.target.files?.[0]
+  if (!file) return
+  try {
+    const parsed = JSON.parse(await file.text())
+    if (!parsed || typeof parsed !== 'object' || !parsed.platforms) {
+      throw new Error('missing platforms')
+    }
+    importData.value = parsed
+  } catch {
+    ElMessage.error('Invalid file')
+    importData.value = null
+    event.target.value = ''
+  }
+}
+
+async function onImport() {
+  if (!importData.value) return
+  if (importMode.value === 'overwrite') {
+    try {
+      await ElMessageBox.confirm(
+        `All ${total.value} existing repos will be deleted and replaced. Continue?`,
+        'Overwrite Confirmation',
+        { type: 'warning', confirmButtonText: 'Overwrite' }
+      )
+    } catch {
+      return
+    }
+  }
+  importing.value = true
+  try {
+    const result = await importRepos({ mode: importMode.value, platforms: importData.value.platforms })
+    importVisible.value = false
+    await showImportResult(result)
+    loadData()
+  } catch {
+    // interceptor already shows the error
+  } finally {
+    importing.value = false
+  }
+}
+
+function showImportResult(result) {
+  const failed = result?.failed || []
+  const escape = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
+  let html = `<p>Added ${result?.added ?? 0} / Updated ${result?.updated ?? 0} / Failed ${failed.length}</p>`
+  if (failed.length) {
+    const rows = failed
+      .map((f) => `<div>${escape(f.platform)}: ${escape(f.owner)}/${escape(f.name)} - ${escape(f.reason)}</div>`)
+      .join('')
+    html += `<div style="max-height: 240px; overflow-y: auto; text-align: left;">${rows}</div>`
+  }
+  return ElMessageBox.alert(html, 'Import Result', {
+    confirmButtonText: 'OK',
+    dangerouslyUseHTMLString: true
+  }).catch(() => {})
+}
+
+function resetImport() {
+  importMode.value = 'incremental'
+  importData.value = null
+  importing.value = false
+  if (fileInput.value) fileInput.value.value = ''
+}
+
 onMounted(loadData)
 </script>
 
@@ -194,5 +340,17 @@ onMounted(loadData)
   margin-top: 16px;
   display: flex;
   justify-content: flex-end;
+}
+.import-section {
+  margin-bottom: 16px;
+}
+.import-summary {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.import-summary + .import-section {
+  margin-top: 16px;
 }
 </style>

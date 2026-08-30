@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -60,6 +61,18 @@ func (r *Registry) Get(name string) Collector {
 		}
 	}
 	return nil
+}
+
+// Names 返回已注册采集器的平台名（排序后）。
+func (r *Registry) Names() []string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	names := make([]string, 0, len(r.collectors))
+	for _, c := range r.collectors {
+		names = append(names, c.Name())
+	}
+	sort.Strings(names)
+	return names
 }
 
 // Match 返回能处理该 URL 的采集器，无匹配返回 nil。

@@ -64,6 +64,8 @@ export const listRepos = (params) => http.post('/repo/list', params)
 export const getRepo = (id) => http.post('/repo/get', { id })
 export const refreshRepo = (id) => http.post('/repo/refresh', { id })
 export const deleteRepo = (id) => http.post('/repo/delete', { id })
+export const exportRepos = (platforms) => http.post('/repo/export', platforms ? { platforms } : {})
+export const importRepos = (payload) => http.post('/repo/import', payload)
 
 // Tasks
 export const startTask = (type) => http.post('/task/start', { type })

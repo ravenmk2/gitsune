@@ -2,6 +2,7 @@ package server
 
 import (
 	"database/sql"
+	"io"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -167,4 +168,161 @@ func (s *Server) deleteRepo(c *gin.Context) {
 		return
 	}
 	ok(c, nil)
+}
+
+// repoTransferItem 导出/导入共用的仓库条目（不含 id/platform/created_at）。
+type repoTransferItem struct {
+	Owner        string `json:"owner"`
+	Name         string `json:"name"`
+	URL          string `json:"url"`
+	Description  string `json:"description"`
+	Language     string `json:"language"`
+	Stars        int    `json:"stars"`
+	Forks        int    `json:"forks"`
+	License      string `json:"license"`
+	Source       string `json:"source"`
+	LastSyncedAt string `json:"last_synced_at"`
+}
+
+func toTransferItem(r *model.Repo) repoTransferItem {
+	return repoTransferItem{
+		Owner:        r.Owner,
+		Name:         r.Name,
+		URL:          r.URL,
+		Description:  r.Description,
+		Language:     r.Language,
+		Stars:        r.Stars,
+		Forks:        r.Forks,
+		License:      r.License,
+		Source:       r.Source,
+		LastSyncedAt: r.LastSyncedAt,
+	}
+}
+
+type exportReposRequest struct {
+	Platforms []string `json:"platforms"`
+}
+
+type exportReposResponse struct {
+	Version    int                            `json:"version"`
+	ExportedAt string                         `json:"exported_at"`
+	Platforms  map[string][]repoTransferItem `json:"platforms"`
+}
+
+// exportRepos POST /api/repo/export：导出仓库为按平台分组的 JSON 文档。
+func (s *Server) exportRepos(c *gin.Context) {
+	var req exportReposRequest
+	if err := c.ShouldBindJSON(&req); err != nil && err != io.EOF {
+		fail(c, CodeValidationError, "invalid request body")
+		return
+	}
+	repos, err := s.store.ListAll(req.Platforms)
+	if err != nil {
+		fail(c, CodeInternalError, "failed to query repos")
+		return
+	}
+	// 被请求的平台都作为 key 出现（没有数据则空数组）；缺省时输出全部已注册平台
+	keys := req.Platforms
+	if len(keys) == 0 {
+		keys = s.registry.Names()
+	}
+	groups := make(map[string][]repoTransferItem, len(keys))
+	for _, p := range keys {
+		groups[p] = []repoTransferItem{}
+	}
+	for i := range repos {
+		groups[repos[i].Platform] = append(groups[repos[i].Platform], toTransferItem(&repos[i]))
+	}
+	ok(c, exportReposResponse{Version: 1, ExportedAt: model.NowUTC(), Platforms: groups})
+}
+
+// 导入模式
+const (
+	importModeIncremental = "incremental"
+	importModeOverwrite   = "overwrite"
+)
+
+type importReposRequest struct {
+	Mode      string                        `json:"mode"`
+	Platforms map[string][]repoTransferItem `json:"platforms"`
+}
+
+type importFailedItem struct {
+	Platform string `json:"platform"`
+	Owner    string `json:"owner"`
+	Name     string `json:"name"`
+	Reason   string `json:"reason"`
+}
+
+type importReposResponse struct {
+	Added   int                `json:"added"`
+	Updated int                `json:"updated"`
+	Failed  []importFailedItem `json:"failed"`
+}
+
+// importRepos POST /api/repo/import（admin）：按模式增量 upsert 或覆盖重建仓库表。
+func (s *Server) importRepos(c *gin.Context) {
+	var req importReposRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		fail(c, CodeValidationError, "invalid request body")
+		return
+	}
+	if req.Mode != importModeIncremental && req.Mode != importModeOverwrite {
+		fail(c, CodeValidationError, "mode must be incremental or overwrite")
+		return
+	}
+	repos := make([]model.Repo, 0)
+	failed := make([]importFailedItem, 0)
+	for platformName, items := range req.Platforms {
+		if s.registry.Get(platformName) == nil {
+			for _, item := range items {
+				failed = append(failed, importFailedItem{
+					Platform: platformName, Owner: item.Owner, Name: item.Name, Reason: "unknown platform",
+				})
+			}
+			continue
+		}
+		for _, item := range items {
+			owner := strings.TrimSpace(item.Owner)
+			name := strings.TrimSpace(item.Name)
+			if owner == "" || name == "" {
+				failed = append(failed, importFailedItem{
+					Platform: platformName, Owner: item.Owner, Name: item.Name, Reason: "owner and name are required",
+				})
+				continue
+			}
+			source := strings.TrimSpace(item.Source)
+			if source == "" {
+				source = model.SourceManual
+			}
+			repos = append(repos, model.Repo{
+				Platform:     platformName,
+				Owner:        owner,
+				Name:         name,
+				URL:          item.URL,
+				Description:  item.Description,
+				Language:     item.Language,
+				Stars:        item.Stars,
+				Forks:        item.Forks,
+				License:      item.License,
+				Source:       source,
+				LastSyncedAt: item.LastSyncedAt,
+			})
+		}
+	}
+
+	var added, updated int
+	var err error
+	if req.Mode == importModeOverwrite {
+		added, err = s.store.ReplaceAll(repos)
+	} else {
+		added, updated, err = s.store.UpsertMany(repos)
+	}
+	if err != nil {
+		logrus.WithError(err).Error("repo/import: failed to write repos")
+		fail(c, CodeInternalError, "failed to import repos")
+		return
+	}
+	logrus.Infof("repo/import: mode=%s added=%d updated=%d failed=%d", req.Mode, added, updated, len(failed))
+	ok(c, importReposResponse{Added: added, Updated: updated, Failed: failed})
 }

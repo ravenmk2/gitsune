@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/jmoiron/sqlx"
+
 	"gitsune/internal/model"
 )
 
@@ -89,4 +91,116 @@ func (s *Store) ListRepos(page, size int, platform, keyword, language, source st
 		return nil, 0, err
 	}
 	return items, total, nil
+}
+
+// ListAll 查询仓库全量列表（platforms 为空=全部），按 platform,owner,name 排序。
+func (s *Store) ListAll(platforms []string) ([]model.Repo, error) {
+	items := []model.Repo{}
+	query := `SELECT * FROM repo`
+	var args []any
+	if len(platforms) > 0 {
+		q, a, err := sqlx.In(`SELECT * FROM repo WHERE platform IN (?)`, platforms)
+		if err != nil {
+			return nil, err
+		}
+		query, args = q, a
+	}
+	query += ` ORDER BY platform, owner, name`
+	if err := s.db.Select(&items, query, args...); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+// UpsertMany 单事务内按 (platform, owner, name) 批量 upsert 仓库，返回新增与更新条数。
+func (s *Store) UpsertMany(repos []model.Repo) (added, updated int, err error) {
+	tx, err := s.db.Beginx()
+	if err != nil {
+		return 0, 0, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	now := model.NowUTC()
+	insert, err := tx.Preparex(
+		`INSERT OR IGNORE INTO repo
+		 (platform, owner, name, url, description, language, stars, forks, license, source, created_at, last_synced_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+	if err != nil {
+		return 0, 0, err
+	}
+	defer func() { _ = insert.Close() }()
+	update, err := tx.Preparex(
+		`UPDATE repo SET url = ?, description = ?, language = ?, stars = ?, forks = ?, license = ?, source = ?, last_synced_at = ?
+		 WHERE platform = ? AND owner = ? AND name = ?
+		   AND (url != ? OR description != ? OR language != ? OR stars != ? OR forks != ? OR license != ? OR source != ? OR last_synced_at != ?)`)
+	if err != nil {
+		return 0, 0, err
+	}
+	defer func() { _ = update.Close() }()
+
+	for i := range repos {
+		r := &repos[i]
+		res, err := insert.Exec(
+			r.Platform, r.Owner, r.Name, r.URL, r.Description, r.Language, r.Stars, r.Forks, r.License, r.Source, now, r.LastSyncedAt,
+		)
+		if err != nil {
+			return 0, 0, err
+		}
+		if n, _ := res.RowsAffected(); n == 1 {
+			added++
+			continue
+		}
+		// 仅元数据实际变化时计为 updated
+		res, err = update.Exec(
+			r.URL, r.Description, r.Language, r.Stars, r.Forks, r.License, r.Source, r.LastSyncedAt,
+			r.Platform, r.Owner, r.Name,
+			r.URL, r.Description, r.Language, r.Stars, r.Forks, r.License, r.Source, r.LastSyncedAt,
+		)
+		if err != nil {
+			return 0, 0, err
+		}
+		if n, _ := res.RowsAffected(); n == 1 {
+			updated++
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, 0, err
+	}
+	return added, updated, nil
+}
+
+// ReplaceAll 单事务内清空 repo 表并插入全部仓库（失败回滚），返回插入条数。
+func (s *Store) ReplaceAll(repos []model.Repo) (added int, err error) {
+	tx, err := s.db.Beginx()
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.Exec(`DELETE FROM repo`); err != nil {
+		return 0, err
+	}
+	insert, err := tx.Preparex(
+		`INSERT INTO repo
+		 (platform, owner, name, url, description, language, stars, forks, license, source, created_at, last_synced_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = insert.Close() }()
+
+	now := model.NowUTC()
+	for i := range repos {
+		r := &repos[i]
+		if _, err := insert.Exec(
+			r.Platform, r.Owner, r.Name, r.URL, r.Description, r.Language, r.Stars, r.Forks, r.License, r.Source, now, r.LastSyncedAt,
+		); err != nil {
+			return 0, err
+		}
+		added++
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	return added, nil
 }

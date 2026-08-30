@@ -58,6 +58,7 @@ func (s *Server) routes() {
 		authed.POST("/repo/collect", s.collectRepo)
 		authed.POST("/repo/list", s.listRepos)
 		authed.POST("/repo/get", s.getRepo)
+		authed.POST("/repo/export", s.exportRepos)
 	}
 
 	// 管理员专属
@@ -71,6 +72,7 @@ func (s *Server) routes() {
 
 		admin.POST("/repo/refresh", s.refreshRepo)
 		admin.POST("/repo/delete", s.deleteRepo)
+		admin.POST("/repo/import", s.importRepos)
 
 		admin.POST("/task/start", s.startTask)
 		admin.POST("/task-log/list", s.listTaskLogs)
