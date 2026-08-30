@@ -1,11 +1,11 @@
 # Gitsune
 
-Gitsune 是一个自托管的 Git 仓库收藏夹：把散落在 GitHub、GitLab、Gitee 上的仓库收录到一处统一管理，还能每天自动收录 GitHub Trending 与 Gitee GVP 榜单上的热门项目，配网页管理界面，支持多人使用。
+Gitsune 是一个自托管的 Git 仓库收藏夹：把散落在 GitHub、GitLab、Gitee 上的仓库收录到一处统一管理，还能定时自动收录 GitHub Trending 与 Gitee GVP 榜单上的热门项目，配网页管理界面，支持多人使用。
 
 ## 功能一览
 
 - **手动收录**：粘贴仓库链接，自动识别平台并抓取描述、语言、star、fork、许可证等信息
-- **榜单采集**：每天定时收录 GitHub Trending（日 / 周 / 月三榜）和 Gitee GVP，也可随时手动触发，执行记录可查
+- **榜单采集**：定时收录 GitHub Trending（日 / 周 / 月三榜）和 Gitee GVP（默认每 6 小时一次），也可随时手动触发，执行记录可查
 - **多用户**：管理员与普通用户两种角色；管理员负责用户管理、删除仓库、触发采集与系统设置
 - **筛选检索**：按平台、语言、来源、关键词筛选，按 star 数排序
 
@@ -67,7 +67,7 @@ go build -o dist/gitsune ./cmd/gitsune
 - **用户管理**：管理员在"用户管理"页创建账号、重置密码、调整角色；内置 `admin` 账号不可删除或降级
 - **系统设置**：
   - *GitHub Token*：填入 personal access token 可提高 GitHub API 调用限额，页面只显示掩码
-  - *采集时间*：标准 5 段 cron 表达式（默认 `0 7 * * *`，每天 07:00），保存后立即生效
+  - *采集时间*：标准 5 段 cron 表达式（默认 `0 */6 * * *`，每 6 小时一次），保存后立即生效
 
 ## 配置项
 
@@ -79,7 +79,7 @@ go build -o dist/gitsune ./cmd/gitsune
 | `GITSUNE_DATA_PATH` | `./data`（Docker 中 `/app/data`） | 数据目录，数据库为其下 `gitsune.db` |
 | `GITSUNE_ADMIN_PASSWORD` | `admin123` | 首次启动的内置管理员密码，请尽快修改 |
 | `GITSUNE_GITHUB_TOKEN` | 空 | 初始 GitHub Token（之后可在设置页修改） |
-| `GITSUNE_CRON` | `0 7 * * *` | 每日采集时间（5 段 cron） |
+| `GITSUNE_CRON` | `0 */6 * * *` | 定时采集周期（5 段 cron，默认每 6 小时） |
 | `GITSUNE_LOG_LEVEL` | `info` | 日志级别 |
 
 登录令牌（JWT）密钥无需配置：首次启动自动生成随机值并保存到数据目录的 `jwt_secret` 文件，重启后已签发的令牌仍然有效。

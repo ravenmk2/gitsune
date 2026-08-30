@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"sync"
 	"time"
 
@@ -23,6 +24,12 @@ var ErrInvalidTaskType = errors.New("invalid task type")
 
 // taskExecTimeout 单个任务最长执行时间。
 const taskExecTimeout = 10 * time.Minute
+
+// maxNetRetries 网络连接类错误的最大原地重试次数。
+const maxNetRetries = 1000
+
+// netRetryDelay 网络重试间隔。
+const netRetryDelay = 5 * time.Second
 
 // Runner 任务执行器，手动触发与定时调度共用。
 type Runner struct {
@@ -129,7 +136,7 @@ func (r *Runner) runGitHubTrending(ctx context.Context) (int, error) {
 	seen := map[string]bool{}
 	added := 0
 	for _, since := range []string{"daily", "weekly", "monthly"} {
-		repos, err := r.github.FetchTrending(ctx, since)
+		repos, err := r.fetchTrendingWithRetry(ctx, since)
 		if err != nil {
 			return added, fmt.Errorf("failed to fetch trending (%s): %w", since, err)
 		}
@@ -149,6 +156,33 @@ func (r *Runner) runGitHubTrending(ctx context.Context) (int, error) {
 		}
 	}
 	return added, nil
+}
+
+// fetchTrendingWithRetry 抓取 trending 榜单，网络连接类错误原地重试最多 maxNetRetries 次，
+// HTTP 状态码、解析错误等不重试；重试受 ctx 超时约束。
+func (r *Runner) fetchTrendingWithRetry(ctx context.Context, since string) ([]*platform.RepoInfo, error) {
+	var repos []*platform.RepoInfo
+	var err error
+	for attempt := 0; attempt <= maxNetRetries; attempt++ {
+		repos, err = r.github.FetchTrending(ctx, since)
+		if err == nil || !isNetworkError(err) || ctx.Err() != nil {
+			return repos, err
+		}
+		logrus.WithError(err).Warnf("github trending (%s): network error, retry %d/%d in %s", since, attempt+1, maxNetRetries, netRetryDelay)
+		select {
+		case <-ctx.Done():
+			return nil, err
+		case <-time.After(netRetryDelay):
+		}
+	}
+	return repos, err
+}
+
+// isNetworkError 判断是否为网络连接类错误（DNS 失败、连接拒绝/重置、超时等），
+// HTTP 非 200 与页面解析错误不属于此类。
+func isNetworkError(err error) bool {
+	var nerr net.Error
+	return errors.As(err, &nerr)
 }
 
 // runGiteeGVP 抓取 Gitee GVP 列表并 upsert，返回新增条数。

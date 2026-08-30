@@ -17,7 +17,7 @@
         <el-input v-model="form.cron" placeholder="e.g. 0 3 * * *" />
       </el-form-item>
       <el-form-item label=" ">
-        <span class="hint">Daily collection schedule, standard 5-field cron expression (minute hour day month weekday), e.g. 0 3 * * * runs at 03:00 every day</span>
+        <span class="hint">Collection schedule, standard 5-field cron expression (minute hour day month weekday), default 0 */6 * * * runs every 6 hours</span>
       </el-form-item>
       <el-form-item label=" ">
         <el-button type="primary" :loading="savingCron" @click="onSaveCron">Save Cron</el-button>

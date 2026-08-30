@@ -10,10 +10,10 @@ import (
 	"gitsune/internal/store"
 )
 
-// DefaultCronExpr 默认每日调度表达式。
-const DefaultCronExpr = "0 7 * * *"
+// DefaultCronExpr 默认定时调度表达式（每 6 小时一次）。
+const DefaultCronExpr = "0 */6 * * *"
 
-// Scheduler 每日定时调度，支持按 setting 中的 cron 表达式重建。
+// Scheduler 定时调度，支持按 setting 中的 cron 表达式重建。
 type Scheduler struct {
 	store  *store.Store
 	runner *Runner
@@ -58,17 +58,17 @@ func (s *Scheduler) Stop() {
 func (s *Scheduler) startLocked() error {
 	expr := s.store.GetSettingOr("cron", DefaultCronExpr)
 	c := cron.New()
-	if _, err := c.AddFunc(expr, s.runDaily); err != nil {
+	if _, err := c.AddFunc(expr, s.runScheduled); err != nil {
 		return err
 	}
 	c.Start()
 	s.cron = c
-	logrus.Infof("daily collection task scheduled: %s", expr)
+	logrus.Infof("collection task scheduled: %s", expr)
 	return nil
 }
 
-// runDaily 顺序执行 github_trending 再 gitee_gvp，各自独立写 task_log。
-func (s *Scheduler) runDaily() {
+// runScheduled 顺序执行 github_trending 再 gitee_gvp，各自独立写 task_log。
+func (s *Scheduler) runScheduled() {
 	logrus.Info("scheduled collection started")
 	s.runner.RunSync(model.TaskTypeGitHubTrending)
 	s.runner.RunSync(model.TaskTypeGiteeGVP)

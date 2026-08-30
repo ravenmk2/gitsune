@@ -87,8 +87,8 @@ func (r *Registry) Match(rawurl string) Collector {
 	return nil
 }
 
-// httpClient 统一 30s 超时。
-var httpClient = &http.Client{Timeout: 30 * time.Second}
+// httpClient 统一 1 分钟超时。
+var httpClient = &http.Client{Timeout: time.Minute}
 
 // newRequest 构造带 UA 的 GET 请求。
 func newRequest(ctx context.Context, rawurl string) (*http.Request, error) {
@@ -96,7 +96,7 @@ func newRequest(ctx context.Context, rawurl string) (*http.Request, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "gitsune")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
 	req.Header.Set("Accept", "*/*")
 	return req, nil
 }
