@@ -16,7 +16,7 @@ type collectRepoRequest struct {
 	URL string `json:"url"`
 }
 
-// collectRepo POST /api/repo/collect：识别平台抓取详情后 upsert（source=manual）。
+// collectRepo POST /api/repo/collect：识别平台抓取详情后录入（source=manual）；已存在的仓库不覆盖，直接返回现有记录。
 func (s *Server) collectRepo(c *gin.Context) {
 	var req collectRepoRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -36,6 +36,15 @@ func (s *Server) collectRepo(c *gin.Context) {
 	owner, name, err := platform.ParseRepoPath(req.URL)
 	if err != nil {
 		fail(c, CodeValidationError, "cannot parse owner/name from url")
+		return
+	}
+	// 已存在的仓库不覆盖，直接返回现有记录（数据更新只走 repo/refresh 手动刷新）
+	if existing, err := s.store.GetRepoByKey(collector.Name(), owner, name); err == nil {
+		ok(c, existing)
+		return
+	} else if err != sql.ErrNoRows {
+		logrus.WithError(err).Error("repo/collect: failed to query repo")
+		fail(c, CodeInternalError, "failed to query repos")
 		return
 	}
 	repo, err := s.fetchAndUpsert(c, collector, owner, name, model.SourceManual)

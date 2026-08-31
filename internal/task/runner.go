@@ -131,7 +131,7 @@ func (r *Runner) execute(id int64, typ string) {
 	logrus.Infof("task %s (id=%d): succeeded, %d new repo(s) added", typ, id, added)
 }
 
-// runGitHubTrending 依次抓 daily/weekly/monthly 三榜，合并后 upsert，返回新增条数。
+// runGitHubTrending 依次抓 daily/weekly/monthly 三榜，合并去重后插入新增仓库，返回新增条数。
 func (r *Runner) runGitHubTrending(ctx context.Context) (int, error) {
 	seen := map[string]bool{}
 	added := 0
@@ -146,7 +146,7 @@ func (r *Runner) runGitHubTrending(ctx context.Context) (int, error) {
 				continue
 			}
 			seen[key] = true
-			created, err := r.upsert(ri, model.SourceTrending)
+			created, err := r.insert(ri, model.SourceTrending)
 			if err != nil {
 				return added, err
 			}
@@ -185,7 +185,7 @@ func isNetworkError(err error) bool {
 	return errors.As(err, &nerr)
 }
 
-// runGiteeGVP 抓取 Gitee GVP 列表并 upsert，返回新增条数。
+// runGiteeGVP 抓取 Gitee GVP 列表并插入新增仓库，返回新增条数。
 func (r *Runner) runGiteeGVP(ctx context.Context) (int, error) {
 	repos, err := r.gitee.FetchGVP(ctx)
 	if err != nil {
@@ -193,7 +193,7 @@ func (r *Runner) runGiteeGVP(ctx context.Context) (int, error) {
 	}
 	added := 0
 	for _, ri := range repos {
-		created, err := r.upsert(ri, model.SourceGVP)
+		created, err := r.insert(ri, model.SourceGVP)
 		if err != nil {
 			return added, err
 		}
@@ -204,8 +204,9 @@ func (r *Runner) runGiteeGVP(ctx context.Context) (int, error) {
 	return added, nil
 }
 
-func (r *Runner) upsert(info *platform.RepoInfo, source string) (bool, error) {
-	_, created, err := r.store.UpsertRepo(&model.Repo{
+// insert 采集落库：已存在的仓库不覆盖（数据更新只走 repo/refresh 手动刷新）。
+func (r *Runner) insert(info *platform.RepoInfo, source string) (bool, error) {
+	_, created, err := r.store.InsertRepo(&model.Repo{
 		Platform:    info.Platform,
 		Owner:       info.Owner,
 		Name:        info.Name,
@@ -218,7 +219,7 @@ func (r *Runner) upsert(info *platform.RepoInfo, source string) (bool, error) {
 		Source:      source,
 	})
 	if err != nil {
-		return false, fmt.Errorf("failed to upsert %s/%s: %w", info.Owner, info.Name, err)
+		return false, fmt.Errorf("failed to insert %s/%s: %w", info.Owner, info.Name, err)
 	}
 	return created, nil
 }

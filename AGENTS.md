@@ -56,7 +56,7 @@ CI：`.github/workflows/build-image.yml`，push 到 master/main 时先跑测试�
 - **命名**：采集"任务"统一用 task；执行历史表 `task_log`；任务类型值 `github_trending` / `gitee_gvp`（平台名在前）；避免使用 SQL 保留字做列名（如 `trigger`，用 `trigger_mode`）
 - **权限**：内置 admin（username == "admin"）不可删除、不可降级，违反返回 `ADMIN_USER_IMMUTABLE`；admin 接口挂 `AdminRequired()` 分组
 - **平台扩展**：实现 `platform.Collector` 接口（`Name`/`Match`/`FetchRepo`）并在 registry 注册即可支持新平台；HTTP 请求统一带 1 分钟超时，UA 使用 Chrome 浏览器标识（见 `newRequest`）
-- **任务执行**：新任务类型在 `internal/task/runner.go` 注册执行函数；同类型并发触发必须返回 `TASK_ALREADY_RUNNING`；panic 必须 recover 并落 `task_log.message`；github_trending 抓取遇网络连接类错误原地重试最多 1000 次（间隔 5s，受任务超时约束）
+- **任务执行**：新任务类型在 `internal/task/runner.go` 注册执行函数；同类型并发触发必须返回 `TASK_ALREADY_RUNNING`；panic 必须 recover 并落 `task_log.message`；github_trending 抓取遇网络连接类错误原地重试最多 1000 次（间隔 5s，受任务超时约束）；采集任务与手动录入（repo/collect）只新增仓库、不覆盖已有记录，已有数据的更新只走 repo/refresh（手动 Refresh 或后续定时刷新任务）
 - **日志**：统一用 logrus，不用标准库 log / fmt.Print
 
 ## 前端约定

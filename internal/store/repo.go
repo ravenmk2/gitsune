@@ -9,8 +9,8 @@ import (
 	"gitsune/internal/model"
 )
 
-// UpsertRepo 按 (platform, owner, name) 插入或更新仓库，返回仓库 ID 与是否为新增。
-func (s *Store) UpsertRepo(r *model.Repo) (int64, bool, error) {
+// InsertRepo 按 (platform, owner, name) 插入仓库，已存在则忽略（不覆盖任何字段），返回仓库 ID 与是否为新增。
+func (s *Store) InsertRepo(r *model.Repo) (int64, bool, error) {
 	now := model.NowUTC()
 	res, err := s.db.Exec(
 		`INSERT OR IGNORE INTO repo
@@ -25,6 +25,20 @@ func (s *Store) UpsertRepo(r *model.Repo) (int64, bool, error) {
 		id, err := res.LastInsertId()
 		return id, true, err
 	}
+	var id int64
+	if err := s.db.Get(&id, `SELECT id FROM repo WHERE platform = ? AND owner = ? AND name = ?`, r.Platform, r.Owner, r.Name); err != nil {
+		return 0, false, err
+	}
+	return id, false, nil
+}
+
+// UpsertRepo 按 (platform, owner, name) 插入或更新仓库，返回仓库 ID 与是否为新增。
+func (s *Store) UpsertRepo(r *model.Repo) (int64, bool, error) {
+	id, created, err := s.InsertRepo(r)
+	if err != nil || created {
+		return id, created, err
+	}
+	now := model.NowUTC()
 	if _, err := s.db.Exec(
 		`UPDATE repo SET url = ?, description = ?, language = ?, stars = ?, forks = ?, license = ?, source = ?, last_synced_at = ?
 		 WHERE platform = ? AND owner = ? AND name = ?`,
@@ -33,11 +47,16 @@ func (s *Store) UpsertRepo(r *model.Repo) (int64, bool, error) {
 	); err != nil {
 		return 0, false, err
 	}
-	var id int64
-	if err := s.db.Get(&id, `SELECT id FROM repo WHERE platform = ? AND owner = ? AND name = ?`, r.Platform, r.Owner, r.Name); err != nil {
-		return 0, false, err
-	}
 	return id, false, nil
+}
+
+// GetRepoByKey 按 (platform, owner, name) 查询仓库，不存在返回 sql.ErrNoRows。
+func (s *Store) GetRepoByKey(platform, owner, name string) (*model.Repo, error) {
+	var r model.Repo
+	if err := s.db.Get(&r, `SELECT * FROM repo WHERE platform = ? AND owner = ? AND name = ?`, platform, owner, name); err != nil {
+		return nil, err
+	}
+	return &r, nil
 }
 
 // GetRepoByID 按 ID 查询仓库，不存在返回 sql.ErrNoRows。
