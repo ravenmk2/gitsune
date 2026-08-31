@@ -13,14 +13,16 @@ const (
 const (
 	SourceManual   = "manual"
 	SourceTrending = "trending"
-	SourceGVP      = "gvp"
 )
 
 // 任务类型
 const (
 	TaskTypeGitHubTrending = "github_trending"
-	TaskTypeGiteeGVP       = "gitee_gvp"
+	TaskTypeRepoRefresh    = "repo_refresh"
 )
+
+// TaskTypes 全部任务类型（调度器按此逐个读取独立配置）。
+var TaskTypes = []string{TaskTypeGitHubTrending, TaskTypeRepoRefresh}
 
 // 任务状态
 const (
@@ -62,9 +64,9 @@ type Repo struct {
 	Stars        int    `db:"stars" json:"stars"`
 	Forks        int    `db:"forks" json:"forks"`
 	License      string `db:"license" json:"license"`
-	Source       string `db:"source" json:"source"`
-	CreatedAt    string `db:"created_at" json:"created_at"`
-	LastSyncedAt string `db:"last_synced_at" json:"last_synced_at"`
+	Source      string `db:"source" json:"source"`
+	CreatedAt   string `db:"created_at" json:"created_at"`
+	RefreshedAt string `db:"refreshed_at" json:"refreshed_at"`
 }
 
 // TaskLog 任务执行历史表。

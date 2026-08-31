@@ -63,7 +63,7 @@ const platformTagStyle = computed(() => {
 const langColor = computed(() => LANG_COLORS[props.repo.language] || '#909399')
 
 const syncedAt = computed(() =>
-  props.repo.last_synced_at ? dayjs(props.repo.last_synced_at).format('YYYY-MM-DD HH:mm:ss') : 'never'
+  props.repo.refreshed_at ? dayjs(props.repo.refreshed_at).format('YYYY-MM-DD HH:mm:ss') : 'never'
 )
 
 function formatCount(n) {

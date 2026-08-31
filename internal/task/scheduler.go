@@ -55,24 +55,42 @@ func (s *Scheduler) Stop() {
 	}
 }
 
+// TaskConfig 返回任务的启用状态与生效 cron 表达式。
+// 启用开关读 <type>_enabled（默认 true）；cron 读 <type>_cron，
+// github_trending 额外兜底旧的统一设置项 cron（再兜底默认表达式）。
+func (s *Scheduler) TaskConfig(typ string) (enabled bool, cronExpr string) {
+	enabled = s.store.GetSettingOr(typ+"_enabled", "true") == "true"
+	def := DefaultCronExpr
+	if typ == model.TaskTypeGitHubTrending {
+		def = s.store.GetSettingOr("cron", DefaultCronExpr)
+	}
+	return enabled, s.store.GetSettingOr(typ+"_cron", def)
+}
+
 func (s *Scheduler) startLocked() error {
-	expr := s.store.GetSettingOr("cron", DefaultCronExpr)
 	c := cron.New()
-	if _, err := c.AddFunc(expr, s.runScheduled); err != nil {
-		return err
+	for _, typ := range model.TaskTypes {
+		enabled, expr := s.TaskConfig(typ)
+		if !enabled {
+			logrus.Infof("task %s: disabled, skipping schedule", typ)
+			continue
+		}
+		typ := typ
+		if _, err := c.AddFunc(expr, func() { s.runScheduled(typ) }); err != nil {
+			return err
+		}
+		logrus.Infof("task %s scheduled: %s", typ, expr)
 	}
 	c.Start()
 	s.cron = c
-	logrus.Infof("collection task scheduled: %s", expr)
 	return nil
 }
 
-// runScheduled 顺序执行 github_trending 再 gitee_gvp，各自独立写 task_log。
-func (s *Scheduler) runScheduled() {
-	logrus.Info("scheduled collection started")
-	s.runner.RunSync(model.TaskTypeGitHubTrending)
-	s.runner.RunSync(model.TaskTypeGiteeGVP)
-	logrus.Info("scheduled collection finished")
+// runScheduled 定时回调：执行指定任务，写 task_log。
+func (s *Scheduler) runScheduled(typ string) {
+	logrus.Infof("scheduled task %s started", typ)
+	s.runner.RunSync(typ)
+	logrus.Infof("scheduled task %s finished", typ)
 }
 
 // ValidateCronExpr 校验 cron 表达式（5 段标准格式）。

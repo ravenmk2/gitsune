@@ -181,32 +181,30 @@ func (s *Server) deleteRepo(c *gin.Context) {
 	ok(c, nil)
 }
 
-// repoTransferItem 导出/导入共用的仓库条目（不含 id/platform/created_at）。
+// repoTransferItem 导出/导入共用的仓库条目（不含 id/platform/created_at/refreshed_at）。
 type repoTransferItem struct {
-	Owner        string `json:"owner"`
-	Name         string `json:"name"`
-	URL          string `json:"url"`
-	Description  string `json:"description"`
-	Language     string `json:"language"`
-	Stars        int    `json:"stars"`
-	Forks        int    `json:"forks"`
-	License      string `json:"license"`
-	Source       string `json:"source"`
-	LastSyncedAt string `json:"last_synced_at"`
+	Owner       string `json:"owner"`
+	Name        string `json:"name"`
+	URL         string `json:"url"`
+	Description string `json:"description"`
+	Language    string `json:"language"`
+	Stars       int    `json:"stars"`
+	Forks       int    `json:"forks"`
+	License     string `json:"license"`
+	Source      string `json:"source"`
 }
 
 func toTransferItem(r *model.Repo) repoTransferItem {
 	return repoTransferItem{
-		Owner:        r.Owner,
-		Name:         r.Name,
-		URL:          r.URL,
-		Description:  r.Description,
-		Language:     r.Language,
-		Stars:        r.Stars,
-		Forks:        r.Forks,
-		License:      r.License,
-		Source:       r.Source,
-		LastSyncedAt: r.LastSyncedAt,
+		Owner:       r.Owner,
+		Name:        r.Name,
+		URL:         r.URL,
+		Description: r.Description,
+		Language:    r.Language,
+		Stars:       r.Stars,
+		Forks:       r.Forks,
+		License:     r.License,
+		Source:      r.Source,
 	}
 }
 
@@ -307,17 +305,16 @@ func (s *Server) importRepos(c *gin.Context) {
 				source = model.SourceManual
 			}
 			repos = append(repos, model.Repo{
-				Platform:     platformName,
-				Owner:        owner,
-				Name:         name,
-				URL:          item.URL,
-				Description:  item.Description,
-				Language:     item.Language,
-				Stars:        item.Stars,
-				Forks:        item.Forks,
-				License:      item.License,
-				Source:       source,
-				LastSyncedAt: item.LastSyncedAt,
+				Platform:    platformName,
+				Owner:       owner,
+				Name:        name,
+				URL:         item.URL,
+				Description: item.Description,
+				Language:    item.Language,
+				Stars:       item.Stars,
+				Forks:       item.Forks,
+				License:     item.License,
+				Source:      source,
 			})
 		}
 	}

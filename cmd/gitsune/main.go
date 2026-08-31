@@ -53,7 +53,7 @@ func main() {
 	registry.Register(platform.NewGitLab())
 	registry.Register(giteeCollector)
 
-	runner := task.NewRunner(st, githubCollector, giteeCollector)
+	runner := task.NewRunner(st, githubCollector, registry)
 	scheduler := task.NewScheduler(st, runner)
 	if err := scheduler.Start(); err != nil {
 		logrus.WithError(err).Error("failed to start scheduler")

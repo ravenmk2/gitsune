@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS repo (
     license        TEXT NOT NULL DEFAULT '',
     source         TEXT NOT NULL DEFAULT 'manual',
     created_at     TEXT NOT NULL,
-    last_synced_at TEXT NOT NULL,
+    refreshed_at   TEXT NOT NULL DEFAULT '',
     UNIQUE (platform, owner, name)
 );
 

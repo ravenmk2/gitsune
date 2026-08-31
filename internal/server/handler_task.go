@@ -2,6 +2,7 @@ package server
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -22,7 +23,7 @@ func (s *Server) startTask(c *gin.Context) {
 	}
 	id, err := s.runner.Start(req.Type, model.TriggerManual)
 	if errors.Is(err, task.ErrInvalidTaskType) {
-		fail(c, CodeValidationError, "type must be github_trending or gitee_gvp")
+		fail(c, CodeValidationError, "type must be one of: "+strings.Join(model.TaskTypes, ", "))
 		return
 	}
 	if errors.Is(err, task.ErrTaskAlreadyRunning) {

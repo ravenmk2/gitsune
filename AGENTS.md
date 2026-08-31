@@ -1,6 +1,6 @@
 # Gitsune 项目指南
 
-Git 仓库收录工具：收录 GitHub / GitLab / Gitee 仓库，定时（默认每 6 小时）或手动采集 GitHub Trending 与 Gitee GVP，带多用户网页管理界面。后端 Go（Gin + sqlx + SQLite + Logrus），前端 Vue3 + Element Plus + Vite，构建为内嵌前端的单二进制，支持 Docker 部署。
+Git 仓库收录工具：收录 GitHub / GitLab / Gitee 仓库，定时（默认每 6 小时）或手动采集 GitHub Trending，带多用户网页管理界面。后端 Go（Gin + sqlx + SQLite + Logrus），前端 Vue3 + Element Plus + Vite，构建为内嵌前端的单二进制，支持 Docker 部署。
 
 ## 目录结构
 
@@ -52,11 +52,12 @@ CI：`.github/workflows/build-image.yml`，push 到 master/main 时先跑测试�
 ## 后端约定
 
 - **API 规范**：严格遵循 `docs/conventions/api-design.md`。一律 POST、`/api` 前缀、kebab-case 路径、统一 HTTP 200 + `{success, data, error}` 信封、错误码 UPPER_SNAKE_CASE、分页结构 `{items, page, size, total, page_count}`、时间 RFC3339 UTC。新增端点挂在 `internal/server/server.go` 的 `routes()` 中相应分组（公开 / 登录 / admin）
-- **数据库**：sqlx + 手写 SQL，不用 ORM。表名单数；新增/变更表结构改 `internal/store/schema.sql`（`CREATE TABLE IF NOT EXISTS`）并在 `internal/store/` 对应文件加查询函数。SQLite 驱动按 build tag 二选一：`sqlite_cgo.go`（mattn/go-sqlite3）/ `sqlite_nocgo.go`（modernc.org/sqlite），新增驱动相关代码两个文件都要考虑
-- **命名**：采集"任务"统一用 task；执行历史表 `task_log`；任务类型值 `github_trending` / `gitee_gvp`（平台名在前）；避免使用 SQL 保留字做列名（如 `trigger`，用 `trigger_mode`）
+- **数据库**：sqlx + 手写 SQL，不用 ORM。表名单数；新增/变更表结构改 `internal/store/schema.sql`（`CREATE TABLE IF NOT EXISTS`，无迁移机制，老库需手工 `ALTER TABLE` 或删库重建）并在 `internal/store/` 对应文件加查询函数。SQLite 驱动按 build tag 二选一：`sqlite_cgo.go`（mattn/go-sqlite3）/ `sqlite_nocgo.go`（modernc.org/sqlite），新增驱动相关代码两个文件都要考虑
+- **命名**：采集"任务"统一用 task；执行历史表 `task_log`；任务类型值 `github_trending` / `repo_refresh`；避免使用 SQL 保留字做列名（如 `trigger`，用 `trigger_mode`）
 - **权限**：内置 admin（username == "admin"）不可删除、不可降级，违反返回 `ADMIN_USER_IMMUTABLE`；admin 接口挂 `AdminRequired()` 分组
 - **平台扩展**：实现 `platform.Collector` 接口（`Name`/`Match`/`FetchRepo`）并在 registry 注册即可支持新平台；HTTP 请求统一带 1 分钟超时，UA 使用 Chrome 浏览器标识（见 `newRequest`）
-- **任务执行**：新任务类型在 `internal/task/runner.go` 注册执行函数；同类型并发触发必须返回 `TASK_ALREADY_RUNNING`；panic 必须 recover 并落 `task_log.message`；github_trending 抓取遇网络连接类错误原地重试最多 1000 次（间隔 5s，受任务超时约束）；采集任务与手动录入（repo/collect）只新增仓库、不覆盖已有记录，已有数据的更新只走 repo/refresh（手动 Refresh 或后续定时刷新任务）
+- **任务执行**：新任务类型在 `internal/task/runner.go` 注册执行函数并加入 `model.TaskTypes`；同类型并发触发必须返回 `TASK_ALREADY_RUNNING`；panic 必须 recover 并落 `task_log.message`；github_trending 抓取遇网络连接类错误原地重试最多 1000 次（间隔 5s，受任务超时约束）；采集任务与手动录入（repo/collect）只新增仓库、不覆盖已有记录，已有数据的更新只走 repo/refresh 与 repo_refresh 任务（刷新 `refreshed_at` 老于 7 天的仓库）
+- **任务调度**：每种任务独立配置，设置项为 `<type>_enabled`（默认 true）与 `<type>_cron`（默认 `0 */6 * * *`；github_trending 额外兜底旧的统一设置项 `cron`）；调度器按 `model.TaskTypes` 逐个建 cron entry，写冲突靠单连接串行化（`SetMaxOpenConns(1)`）与 per-type 互斥锁规避，采集只增、刷新只改，无逻辑冲突
 - **日志**：统一用 logrus，不用标准库 log / fmt.Print
 
 ## 前端约定
@@ -75,7 +76,7 @@ CI：`.github/workflows/build-image.yml`，push 到 master/main 时先跑测试�
 | `GITSUNE_DATA_PATH` | `./data`（Docker 中 `/app/data`） | 数据目录，SQLite 为其下 `gitsune.db` |
 | `GITSUNE_ADMIN_PASSWORD` | `admin123` | 首次启动播种的内置 admin 密码 |
 | `GITSUNE_GITHUB_TOKEN` | 空 | 播种到 setting，提高 GitHub API 限额 |
-| `GITSUNE_CRON` | `0 */6 * * *` | 定时采集 cron 表达式（5 段），默认每 6 小时 |
+| `GITSUNE_CRON` | `0 */6 * * *` | 播种到旧版统一设置项 `cron`，作为 github_trending 的默认 cron（各任务实际调度以设置页 `<type>_cron` / `<type>_enabled` 为准） |
 | `GITSUNE_LOG_LEVEL` | `info` | 日志级别 |
 
 JWT 密钥不走环境变量：首次启动生成随机值并持久化到数据目录 `jwt_secret` 文件（0600），重启后 token 不失效；逻辑在 `config.ResolveJWTSecret()`。

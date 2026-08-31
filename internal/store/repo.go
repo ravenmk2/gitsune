@@ -14,7 +14,7 @@ func (s *Store) InsertRepo(r *model.Repo) (int64, bool, error) {
 	now := model.NowUTC()
 	res, err := s.db.Exec(
 		`INSERT OR IGNORE INTO repo
-		 (platform, owner, name, url, description, language, stars, forks, license, source, created_at, last_synced_at)
+		 (platform, owner, name, url, description, language, stars, forks, license, source, created_at, refreshed_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		r.Platform, r.Owner, r.Name, r.URL, r.Description, r.Language, r.Stars, r.Forks, r.License, r.Source, now, now,
 	)
@@ -40,7 +40,7 @@ func (s *Store) UpsertRepo(r *model.Repo) (int64, bool, error) {
 	}
 	now := model.NowUTC()
 	if _, err := s.db.Exec(
-		`UPDATE repo SET url = ?, description = ?, language = ?, stars = ?, forks = ?, license = ?, source = ?, last_synced_at = ?
+		`UPDATE repo SET url = ?, description = ?, language = ?, stars = ?, forks = ?, license = ?, source = ?, refreshed_at = ?
 		 WHERE platform = ? AND owner = ? AND name = ?`,
 		r.URL, r.Description, r.Language, r.Stars, r.Forks, r.License, r.Source, now,
 		r.Platform, r.Owner, r.Name,
@@ -149,6 +149,15 @@ func (s *Store) ListAll(platforms []string) ([]model.Repo, error) {
 	return items, nil
 }
 
+// ListStaleRepos 查询刷新时间老于 cutoff（RFC3339 UTC）的仓库，按 id 升序；空串视为最旧。
+func (s *Store) ListStaleRepos(cutoff string) ([]model.Repo, error) {
+	items := []model.Repo{}
+	if err := s.db.Select(&items, `SELECT * FROM repo WHERE refreshed_at < ? ORDER BY id`, cutoff); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 // UpsertMany 单事务内按 (platform, owner, name) 批量 upsert 仓库，返回新增与更新条数。
 func (s *Store) UpsertMany(repos []model.Repo) (added, updated int, err error) {
 	tx, err := s.db.Beginx()
@@ -160,16 +169,17 @@ func (s *Store) UpsertMany(repos []model.Repo) (added, updated int, err error) {
 	now := model.NowUTC()
 	insert, err := tx.Preparex(
 		`INSERT OR IGNORE INTO repo
-		 (platform, owner, name, url, description, language, stars, forks, license, source, created_at, last_synced_at)
+		 (platform, owner, name, url, description, language, stars, forks, license, source, created_at, refreshed_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return 0, 0, err
 	}
 	defer func() { _ = insert.Close() }()
+	// refreshed_at 只在数据实际变化时随更新写入，不参与变化判定
 	update, err := tx.Preparex(
-		`UPDATE repo SET url = ?, description = ?, language = ?, stars = ?, forks = ?, license = ?, source = ?, last_synced_at = ?
+		`UPDATE repo SET url = ?, description = ?, language = ?, stars = ?, forks = ?, license = ?, source = ?, refreshed_at = ?
 		 WHERE platform = ? AND owner = ? AND name = ?
-		   AND (url != ? OR description != ? OR language != ? OR stars != ? OR forks != ? OR license != ? OR source != ? OR last_synced_at != ?)`)
+		   AND (url != ? OR description != ? OR language != ? OR stars != ? OR forks != ? OR license != ? OR source != ?)`)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -178,7 +188,7 @@ func (s *Store) UpsertMany(repos []model.Repo) (added, updated int, err error) {
 	for i := range repos {
 		r := &repos[i]
 		res, err := insert.Exec(
-			r.Platform, r.Owner, r.Name, r.URL, r.Description, r.Language, r.Stars, r.Forks, r.License, r.Source, now, r.LastSyncedAt,
+			r.Platform, r.Owner, r.Name, r.URL, r.Description, r.Language, r.Stars, r.Forks, r.License, r.Source, now, now,
 		)
 		if err != nil {
 			return 0, 0, err
@@ -189,9 +199,9 @@ func (s *Store) UpsertMany(repos []model.Repo) (added, updated int, err error) {
 		}
 		// 仅元数据实际变化时计为 updated
 		res, err = update.Exec(
-			r.URL, r.Description, r.Language, r.Stars, r.Forks, r.License, r.Source, r.LastSyncedAt,
+			r.URL, r.Description, r.Language, r.Stars, r.Forks, r.License, r.Source, now,
 			r.Platform, r.Owner, r.Name,
-			r.URL, r.Description, r.Language, r.Stars, r.Forks, r.License, r.Source, r.LastSyncedAt,
+			r.URL, r.Description, r.Language, r.Stars, r.Forks, r.License, r.Source,
 		)
 		if err != nil {
 			return 0, 0, err
@@ -219,7 +229,7 @@ func (s *Store) ReplaceAll(repos []model.Repo) (added int, err error) {
 	}
 	insert, err := tx.Preparex(
 		`INSERT INTO repo
-		 (platform, owner, name, url, description, language, stars, forks, license, source, created_at, last_synced_at)
+		 (platform, owner, name, url, description, language, stars, forks, license, source, created_at, refreshed_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return 0, err
@@ -230,7 +240,7 @@ func (s *Store) ReplaceAll(repos []model.Repo) (added int, err error) {
 	for i := range repos {
 		r := &repos[i]
 		if _, err := insert.Exec(
-			r.Platform, r.Owner, r.Name, r.URL, r.Description, r.Language, r.Stars, r.Forks, r.License, r.Source, now, r.LastSyncedAt,
+			r.Platform, r.Owner, r.Name, r.URL, r.Description, r.Language, r.Stars, r.Forks, r.License, r.Source, now, now,
 		); err != nil {
 			return 0, err
 		}

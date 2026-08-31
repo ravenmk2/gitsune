@@ -19,7 +19,6 @@
       <el-select v-model="query.source" placeholder="Source" clearable style="width: 140px">
         <el-option label="Manual" value="manual" />
         <el-option label="Trending" value="trending" />
-        <el-option label="GVP" value="gvp" />
       </el-select>
       <el-input v-model="query.keyword" placeholder="Keyword" clearable style="width: 180px" @keyup.enter="onSearch" />
       <el-button type="primary" :icon="Search" @click="onSearch">Search</el-button>
@@ -62,7 +61,7 @@
         </template>
       </el-table-column>
       <el-table-column label="Last Synced" width="170">
-        <template #default="{ row }">{{ formatTime(row.last_synced_at) }}</template>
+        <template #default="{ row }">{{ formatTime(row.refreshed_at) }}</template>
       </el-table-column>
       <el-table-column v-if="isAdmin" label="Actions" width="140">
         <template #default="{ row }">
@@ -189,11 +188,11 @@ function platformTagStyle(platform) {
 }
 
 function sourceLabel(source) {
-  return { manual: 'Manual', trending: 'Trending', gvp: 'GVP' }[source] || source
+  return { manual: 'Manual', trending: 'Trending' }[source] || source
 }
 
 function sourceTagType(source) {
-  return { manual: 'success', trending: 'primary', gvp: 'warning' }[source] || 'info'
+  return { manual: 'success', trending: 'primary' }[source] || 'info'
 }
 
 async function loadData() {

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"slices"
 	"sync"
 	"time"
 
@@ -31,17 +32,20 @@ const maxNetRetries = 1000
 // netRetryDelay 网络重试间隔。
 const netRetryDelay = 5 * time.Second
 
+// repoRefreshStaleDays 刷新时间老于该天数的仓库会被 repo_refresh 任务重新抓取。
+const repoRefreshStaleDays = 7
+
 // Runner 任务执行器，手动触发与定时调度共用。
 type Runner struct {
-	store  *store.Store
-	github *platform.GitHubCollector
-	gitee  *platform.GiteeCollector
-	locks  sync.Map // type -> *sync.Mutex，per-type 互斥锁双保险
+	store    *store.Store
+	github   *platform.GitHubCollector
+	registry *platform.Registry
+	locks    sync.Map // type -> *sync.Mutex，per-type 互斥锁双保险
 }
 
 // NewRunner 创建任务执行器。
-func NewRunner(st *store.Store, github *platform.GitHubCollector, gitee *platform.GiteeCollector) *Runner {
-	return &Runner{store: st, github: github, gitee: gitee}
+func NewRunner(st *store.Store, github *platform.GitHubCollector, registry *platform.Registry) *Runner {
+	return &Runner{store: st, github: github, registry: registry}
 }
 
 func (r *Runner) lockFor(typ string) *sync.Mutex {
@@ -51,7 +55,7 @@ func (r *Runner) lockFor(typ string) *sync.Mutex {
 
 // Start 手动触发：创建 running 日志并异步执行，立即返回日志 ID。
 func (r *Runner) Start(typ, triggerMode string) (int64, error) {
-	if typ != model.TaskTypeGitHubTrending && typ != model.TaskTypeGiteeGVP {
+	if !slices.Contains(model.TaskTypes, typ) {
 		return 0, ErrInvalidTaskType
 	}
 	running, err := r.store.HasRunningTask(typ)
@@ -112,8 +116,8 @@ func (r *Runner) execute(id int64, typ string) {
 	switch typ {
 	case model.TaskTypeGitHubTrending:
 		added, err = r.runGitHubTrending(ctx)
-	case model.TaskTypeGiteeGVP:
-		added, err = r.runGiteeGVP(ctx)
+	case model.TaskTypeRepoRefresh:
+		added, err = r.runRepoRefresh(ctx)
 	default:
 		err = ErrInvalidTaskType
 	}
@@ -128,7 +132,7 @@ func (r *Runner) execute(id int64, typ string) {
 	if uerr := r.store.FinishTaskLog(id, model.TaskStatusSuccess, "", added); uerr != nil {
 		logrus.WithError(uerr).Errorf("task %s (id=%d): failed to update task log", typ, id)
 	}
-	logrus.Infof("task %s (id=%d): succeeded, %d new repo(s) added", typ, id, added)
+	logrus.Infof("task %s (id=%d): succeeded, %d repo(s) affected", typ, id, added)
 }
 
 // runGitHubTrending 依次抓 daily/weekly/monthly 三榜，合并去重后插入新增仓库，返回新增条数。
@@ -185,26 +189,51 @@ func isNetworkError(err error) bool {
 	return errors.As(err, &nerr)
 }
 
-// runGiteeGVP 抓取 Gitee GVP 列表并插入新增仓库，返回新增条数。
-func (r *Runner) runGiteeGVP(ctx context.Context) (int, error) {
-	repos, err := r.gitee.FetchGVP(ctx)
+// runRepoRefresh 逐个重新抓取刷新时间老于 repoRefreshStaleDays 天的仓库，返回刷新条数。
+// 单个仓库失败只记日志不影响整体；upsert 走更新路径，refreshed_at 随之重置。
+func (r *Runner) runRepoRefresh(ctx context.Context) (int, error) {
+	cutoff := time.Now().UTC().Add(-repoRefreshStaleDays * 24 * time.Hour).Format(time.RFC3339)
+	repos, err := r.store.ListStaleRepos(cutoff)
 	if err != nil {
 		return 0, err
 	}
-	added := 0
-	for _, ri := range repos {
-		created, err := r.insert(ri, model.SourceGVP)
+	refreshed := 0
+	for i := range repos {
+		if ctx.Err() != nil {
+			break
+		}
+		repo := &repos[i]
+		collector := r.registry.Get(repo.Platform)
+		if collector == nil {
+			logrus.Warnf("repo refresh: skipping %s/%s: unsupported platform %s", repo.Owner, repo.Name, repo.Platform)
+			continue
+		}
+		info, err := collector.FetchRepo(ctx, repo.Owner, repo.Name)
 		if err != nil {
-			return added, err
+			logrus.WithError(err).Warnf("repo refresh: failed to fetch %s/%s", repo.Owner, repo.Name)
+			continue
 		}
-		if created {
-			added++
+		if _, _, err := r.store.UpsertRepo(&model.Repo{
+			Platform:    info.Platform,
+			Owner:       info.Owner,
+			Name:        info.Name,
+			URL:         info.URL,
+			Description: info.Description,
+			Language:    info.Language,
+			Stars:       info.Stars,
+			Forks:       info.Forks,
+			License:     info.License,
+			Source:      repo.Source,
+		}); err != nil {
+			logrus.WithError(err).Warnf("repo refresh: failed to update %s/%s", repo.Owner, repo.Name)
+			continue
 		}
+		refreshed++
 	}
-	return added, nil
+	return refreshed, nil
 }
 
-// insert 采集落库：已存在的仓库不覆盖（数据更新只走 repo/refresh 手动刷新）。
+// insert 采集落库：已存在的仓库不覆盖（数据更新只走 repo/refresh 与 repo_refresh 任务）。
 func (r *Runner) insert(info *platform.RepoInfo, source string) (bool, error) {
 	_, created, err := r.store.InsertRepo(&model.Repo{
 		Platform:    info.Platform,

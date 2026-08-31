@@ -1,7 +1,7 @@
 <template>
   <el-card v-loading="loading" class="settings-card">
     <template #header>Settings</template>
-    <el-form label-width="160px" style="max-width: 640px">
+    <el-form label-width="160px" style="max-width: 720px">
       <el-form-item label="GitHub Token">
         <el-input
           v-model="form.github_token"
@@ -13,14 +13,14 @@
         <el-button type="primary" :loading="savingToken" @click="onSaveToken">Save Token</el-button>
         <el-button type="danger" plain :disabled="!maskedToken" @click="onClearToken">Clear Token</el-button>
       </el-form-item>
-      <el-form-item label="Collection Cron">
-        <el-input v-model="form.cron" placeholder="e.g. 0 3 * * *" />
-      </el-form-item>
-      <el-form-item label=" ">
-        <span class="hint">Collection schedule, standard 5-field cron expression (minute hour day month weekday), default 0 */6 * * * runs every 6 hours</span>
-      </el-form-item>
-      <el-form-item label=" ">
-        <el-button type="primary" :loading="savingCron" @click="onSaveCron">Save Cron</el-button>
+      <el-divider content-position="left">Scheduled Tasks</el-divider>
+      <el-form-item v-for="t in taskList" :key="t.type" :label="t.label">
+        <div class="task-row">
+          <el-switch v-model="form.tasks[t.type].enabled" />
+          <el-input v-model="form.tasks[t.type].cron" placeholder="e.g. 0 3 * * *" class="cron-input" />
+          <el-button type="primary" :loading="savingTask === t.type" @click="onSaveTask(t.type)">Save</el-button>
+        </div>
+        <div class="hint">{{ t.hint }}</div>
       </el-form-item>
     </el-form>
   </el-card>
@@ -31,18 +31,43 @@ import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getSetting, updateSetting } from '../api'
 
+const taskList = [
+  {
+    type: 'github_trending',
+    label: 'GitHub Trending',
+    hint: 'Collects the GitHub Trending chart (new repos only, existing ones are never overwritten)'
+  },
+  {
+    type: 'repo_refresh',
+    label: 'Repo Refresh',
+    hint: 'Re-fetches repos not refreshed in the last 7 days'
+  }
+]
+
 const loading = ref(false)
 const maskedToken = ref('')
-const form = reactive({ github_token: '', cron: '' })
+const form = reactive({
+  github_token: '',
+  tasks: {
+    github_trending: { enabled: true, cron: '' },
+    repo_refresh: { enabled: true, cron: '' }
+  }
+})
 const savingToken = ref(false)
-const savingCron = ref(false)
+const savingTask = ref('')
 
 async function loadData() {
   loading.value = true
   try {
     const data = await getSetting()
     maskedToken.value = data.github_token || ''
-    form.cron = data.cron || ''
+    for (const t of taskList) {
+      const cfg = (data.tasks || {})[t.type]
+      if (cfg) {
+        form.tasks[t.type].enabled = !!cfg.enabled
+        form.tasks[t.type].cron = cfg.cron || ''
+      }
+    }
   } catch {
     // interceptor already shows the error
   } finally {
@@ -87,20 +112,21 @@ async function onClearToken() {
   }
 }
 
-async function onSaveCron() {
-  if (!form.cron.trim()) {
+async function onSaveTask(type) {
+  const cfg = form.tasks[type]
+  if (!cfg.cron.trim()) {
     ElMessage.warning('Please enter a cron expression')
     return
   }
-  savingCron.value = true
+  savingTask.value = type
   try {
-    await updateSetting({ cron: form.cron.trim() })
-    ElMessage.success('Cron saved')
+    await updateSetting({ tasks: { [type]: { enabled: cfg.enabled, cron: cfg.cron.trim() } } })
+    ElMessage.success('Task schedule saved')
     loadData()
   } catch {
     // interceptor already shows the error
   } finally {
-    savingCron.value = false
+    savingTask.value = ''
   }
 }
 
@@ -111,8 +137,17 @@ onMounted(loadData)
 .settings-card {
   max-width: 800px;
 }
+.task-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.cron-input {
+  width: 220px;
+}
 .hint {
   color: #909399;
   font-size: 12px;
+  line-height: 1.5;
 }
 </style>

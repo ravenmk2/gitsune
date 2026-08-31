@@ -4,15 +4,15 @@
       <el-button type="primary" :loading="starting === 'github_trending'" @click="onStart('github_trending')">
         Collect GitHub Trending
       </el-button>
-      <el-button type="warning" :loading="starting === 'gitee_gvp'" @click="onStart('gitee_gvp')">
-        Collect Gitee GVP
+      <el-button type="warning" :loading="starting === 'repo_refresh'" @click="onStart('repo_refresh')">
+        Refresh Stale Repos
       </el-button>
     </div>
 
     <div class="filter-bar">
       <el-select v-model="query.type" placeholder="Type" clearable style="width: 170px">
         <el-option label="GitHub Trending" value="github_trending" />
-        <el-option label="Gitee GVP" value="gitee_gvp" />
+        <el-option label="Repo Refresh" value="repo_refresh" />
       </el-select>
       <el-select v-model="query.status" placeholder="Status" clearable style="width: 130px">
         <el-option label="Running" value="running" />
@@ -95,7 +95,7 @@ function duration(row) {
 }
 
 function typeLabel(type) {
-  return { github_trending: 'GitHub Trending', gitee_gvp: 'Gitee GVP' }[type] || type
+  return { github_trending: 'GitHub Trending', repo_refresh: 'Repo Refresh' }[type] || type
 }
 
 function statusLabel(status) {
