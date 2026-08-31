@@ -5,7 +5,7 @@
     </template>
     <div class="card">
       <div class="card-header">
-        <el-tag size="small" :type="platformTagType" effect="plain">{{ repo.platform }}</el-tag>
+        <el-tag size="small" :style="platformTagStyle">{{ repo.platform }}</el-tag>
         <el-link type="primary" :href="repo.url" target="_blank" underline="hover" class="card-title">
           {{ repo.owner }}/{{ repo.name }}
         </el-link>
@@ -54,9 +54,11 @@ const LANG_COLORS = {
   Swift: '#f05138'
 }
 
-const platformTagType = computed(
-  () => ({ github: 'info', gitlab: 'danger', gitee: 'warning' })[props.repo.platform] || 'info'
-)
+// 平台品牌色：GitHub 深灰近黑、GitLab 橙、Gitee 橙红
+const platformTagStyle = computed(() => {
+  const color = { github: '#1b1f23', gitlab: '#fc6d26', gitee: '#c71d23' }[props.repo.platform] || '#909399'
+  return { backgroundColor: color, borderColor: color, color: '#fff' }
+})
 
 const langColor = computed(() => LANG_COLORS[props.repo.language] || '#909399')
 

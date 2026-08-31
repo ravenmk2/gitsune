@@ -31,7 +31,7 @@
     <el-table v-loading="loading" :data="items" border stripe @sort-change="onSortChange">
       <el-table-column label="Platform" width="90">
         <template #default="{ row }">
-          <el-tag :type="platformTagType(row.platform)">{{ row.platform }}</el-tag>
+          <el-tag :style="platformTagStyle(row.platform)">{{ row.platform }}</el-tag>
         </template>
       </el-table-column>
       <el-table-column label="Repository" min-width="200">
@@ -182,8 +182,10 @@ function formatTime(t) {
   return t ? dayjs(t).format('YYYY-MM-DD HH:mm:ss') : '-'
 }
 
-function platformTagType(platform) {
-  return { github: 'info', gitlab: 'danger', gitee: 'warning' }[platform] || 'info'
+// 平台品牌色：GitHub 深灰近黑、GitLab 橙、Gitee 橙红
+function platformTagStyle(platform) {
+  const color = { github: '#1b1f23', gitlab: '#fc6d26', gitee: '#c71d23' }[platform] || '#909399'
+  return { backgroundColor: color, borderColor: color, color: '#fff' }
 }
 
 function sourceLabel(source) {
