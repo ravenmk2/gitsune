@@ -72,15 +72,17 @@ func (s *Server) fetchAndUpsert(c *gin.Context, collector platform.Collector, ow
 }
 
 type listReposRequest struct {
-	Page     int    `json:"page"`
-	Size     int    `json:"size"`
-	Platform string `json:"platform"`
-	Keyword  string `json:"keyword"`
-	Language string `json:"language"`
-	Source   string `json:"source"`
+	Page      int    `json:"page"`
+	Size      int    `json:"size"`
+	Platform  string `json:"platform"`
+	Keyword   string `json:"keyword"`
+	Language  string `json:"language"`
+	Source    string `json:"source"`
+	SortBy    string `json:"sort_by"`
+	SortOrder string `json:"sort_order"`
 }
 
-// listRepos POST /api/repo/list：分页 + 筛选，按 stars 倒序。
+// listRepos POST /api/repo/list：分页 + 筛选 + 排序（sort_by: id/stars/forks，sort_order: asc/desc，默认 id 倒序）。
 func (s *Server) listRepos(c *gin.Context) {
 	var req listReposRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -88,7 +90,7 @@ func (s *Server) listRepos(c *gin.Context) {
 		return
 	}
 	pageNum, size := normalizePage(req.Page, req.Size)
-	items, total, err := s.store.ListRepos(pageNum, size, req.Platform, req.Keyword, req.Language, req.Source)
+	items, total, err := s.store.ListRepos(pageNum, size, req.Platform, req.Keyword, req.Language, req.Source, req.SortBy, req.SortOrder)
 	if err != nil {
 		fail(c, CodeInternalError, "failed to query repos")
 		return

@@ -20,7 +20,6 @@
       </el-table-column>
       <el-table-column label="Actions" width="320" fixed="right">
         <template #default="{ row }">
-          <el-button link type="primary" @click="openReset(row)">Reset Password</el-button>
           <el-select
             :model-value="row.role"
             size="small"
@@ -31,6 +30,7 @@
             <el-option label="Admin" value="admin" />
             <el-option label="User" value="user" />
           </el-select>
+          <el-button link type="primary" @click="openReset(row)">Reset Password</el-button>
           <el-tooltip :disabled="row.username !== 'admin'" content="The built-in admin cannot be deleted" placement="top">
             <span>
               <el-button link type="danger" :disabled="row.username === 'admin'" @click="onDelete(row)">Delete</el-button>

@@ -42,7 +42,7 @@ func (s *Store) CreateUser(username, passwordHash, role string) (*model.User, er
 	return s.GetUserByID(id)
 }
 
-// ListUsers 分页查询用户，keyword 模糊匹配用户名。
+// ListUsers 分页查询用户，按 id 倒序（新用户在前），keyword 模糊匹配用户名。
 func (s *Store) ListUsers(page, size int, keyword string) ([]model.User, int, error) {
 	where := ""
 	args := []any{}
@@ -55,7 +55,7 @@ func (s *Store) ListUsers(page, size int, keyword string) ([]model.User, int, er
 		return nil, 0, err
 	}
 	items := []model.User{}
-	query := fmt.Sprintf(`SELECT * FROM user%s ORDER BY id ASC LIMIT ? OFFSET ?`, where)
+	query := fmt.Sprintf(`SELECT * FROM user%s ORDER BY id DESC LIMIT ? OFFSET ?`, where)
 	args = append(args, size, (page-1)*size)
 	if err := s.db.Select(&items, query, args...); err != nil {
 		return nil, 0, err

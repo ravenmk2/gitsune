@@ -28,7 +28,7 @@
       <el-button v-if="isAdmin" :icon="Upload" @click="importVisible = true">Import</el-button>
     </div>
 
-    <el-table v-loading="loading" :data="items" border stripe>
+    <el-table v-loading="loading" :data="items" border stripe @sort-change="onSortChange">
       <el-table-column label="Platform" width="90">
         <template #default="{ row }">
           <el-tag :type="platformTagType(row.platform)">{{ row.platform }}</el-tag>
@@ -51,8 +51,8 @@
         </template>
       </el-table-column>
       <el-table-column prop="language" label="Language" width="100" />
-      <el-table-column prop="stars" label="Stars" width="90" sortable />
-      <el-table-column prop="forks" label="Forks" width="90" />
+      <el-table-column prop="stars" label="Stars" width="90" sortable="custom" />
+      <el-table-column prop="forks" label="Forks" width="90" sortable="custom" />
       <el-table-column label="License" width="120">
         <template #default="{ row }">{{ row.license || '-' }}</template>
       </el-table-column>
@@ -155,6 +155,7 @@ const page = ref(1)
 const size = ref(10)
 const total = ref(0)
 const loading = ref(false)
+const sort = reactive({ by: '', order: '' })
 
 const collectVisible = ref(false)
 const collectUrl = ref('')
@@ -201,6 +202,10 @@ async function loadData() {
     if (query.keyword) params.keyword = query.keyword
     if (query.language) params.language = query.language
     if (query.source) params.source = query.source
+    if (sort.by && sort.order) {
+      params.sort_by = sort.by
+      params.sort_order = sort.order
+    }
     const data = await listRepos(params)
     items.value = data.items || []
     total.value = data.total || 0
@@ -212,6 +217,13 @@ async function loadData() {
 }
 
 function onSearch() {
+  page.value = 1
+  loadData()
+}
+
+function onSortChange({ prop, order }) {
+  sort.by = order ? prop : ''
+  sort.order = order === 'ascending' ? 'asc' : order === 'descending' ? 'desc' : ''
   page.value = 1
   loadData()
 }

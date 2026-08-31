@@ -55,8 +55,8 @@ func (s *Store) DeleteRepo(id int64) error {
 	return err
 }
 
-// ListRepos 分页查询仓库，按 stars 倒序；keyword 模糊匹配 owner/name/description。
-func (s *Store) ListRepos(page, size int, platform, keyword, language, source string) ([]model.Repo, int, error) {
+// ListRepos 分页查询仓库，默认按 id 倒序，支持按 id/stars/forks 升降序；keyword 模糊匹配 owner/name/description。
+func (s *Store) ListRepos(page, size int, platform, keyword, language, source, sortBy, sortOrder string) ([]model.Repo, int, error) {
 	var conds []string
 	var args []any
 	if platform != "" {
@@ -85,12 +85,30 @@ func (s *Store) ListRepos(page, size int, platform, keyword, language, source st
 		return nil, 0, err
 	}
 	items := []model.Repo{}
-	query := fmt.Sprintf(`SELECT * FROM repo%s ORDER BY stars DESC, id ASC LIMIT ? OFFSET ?`, where)
+	orderBy := repoOrderBy(sortBy, sortOrder)
+	query := fmt.Sprintf(`SELECT * FROM repo%s ORDER BY %s LIMIT ? OFFSET ?`, where, orderBy)
 	args = append(args, size, (page-1)*size)
 	if err := s.db.Select(&items, query, args...); err != nil {
 		return nil, 0, err
 	}
 	return items, total, nil
+}
+
+// repoOrderBy 生成排序子句：列名白名单防注入，默认 id DESC；非 id 排序时以 id ASC 兜底保证稳定。
+func repoOrderBy(sortBy, sortOrder string) string {
+	col := "id"
+	switch sortBy {
+	case "stars", "forks":
+		col = sortBy
+	}
+	dir := "DESC"
+	if sortOrder == "asc" {
+		dir = "ASC"
+	}
+	if col == "id" {
+		return "id " + dir
+	}
+	return col + " " + dir + ", id ASC"
 }
 
 // ListAll 查询仓库全量列表（platforms 为空=全部），按 platform,owner,name 排序。
