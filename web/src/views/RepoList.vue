@@ -181,10 +181,10 @@ function formatTime(t) {
   return t ? dayjs(t).format('YYYY-MM-DD HH:mm:ss') : '-'
 }
 
-// 平台品牌色：GitHub 深灰近黑、GitLab 橙、Gitee 橙红
+// 平台品牌色：GitHub 深灰近黑、GitLab 橙、Gitee 橙红；固定宽度居中使各平台标签视觉对齐
 function platformTagStyle(platform) {
   const color = { github: '#1b1f23', gitlab: '#fc6d26', gitee: '#c71d23' }[platform] || '#909399'
-  return { backgroundColor: color, borderColor: color, color: '#fff' }
+  return { backgroundColor: color, borderColor: color, color: '#fff', width: '56px', justifyContent: 'center' }
 }
 
 function sourceLabel(source) {
