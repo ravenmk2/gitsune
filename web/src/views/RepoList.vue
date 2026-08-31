@@ -6,13 +6,22 @@
         <el-option label="GitLab" value="gitlab" />
         <el-option label="Gitee" value="gitee" />
       </el-select>
-      <el-input v-model="query.keyword" placeholder="Keyword" clearable style="width: 180px" @keyup.enter="onSearch" />
-      <el-input v-model="query.language" placeholder="Language" clearable style="width: 130px" @keyup.enter="onSearch" />
+      <el-select
+        v-model="query.language"
+        placeholder="Language"
+        clearable
+        filterable
+        allow-create
+        style="width: 150px"
+      >
+        <el-option v-for="lang in languages" :key="lang" :label="lang" :value="lang" />
+      </el-select>
       <el-select v-model="query.source" placeholder="Source" clearable style="width: 140px">
         <el-option label="Manual" value="manual" />
         <el-option label="Trending" value="trending" />
         <el-option label="GVP" value="gvp" />
       </el-select>
+      <el-input v-model="query.keyword" placeholder="Keyword" clearable style="width: 180px" @keyup.enter="onSearch" />
       <el-button type="primary" :icon="Search" @click="onSearch">Search</el-button>
       <el-button type="success" :icon="Plus" @click="collectVisible = true">Collect Repo</el-button>
       <el-button :icon="Download" @click="exportVisible = true">Export</el-button>
@@ -27,12 +36,20 @@
       </el-table-column>
       <el-table-column label="Repository" min-width="200">
         <template #default="{ row }">
-          <el-link type="primary" :href="row.url" target="_blank" underline="never">
-            {{ row.owner }}/{{ row.name }}
-          </el-link>
+          <repo-hover-card :repo="row">
+            <el-link type="primary" :href="row.url" target="_blank" underline="never">
+              {{ row.owner }}/{{ row.name }}
+            </el-link>
+          </repo-hover-card>
         </template>
       </el-table-column>
-      <el-table-column prop="description" label="Description" min-width="180" show-overflow-tooltip />
+      <el-table-column label="Description" min-width="180">
+        <template #default="{ row }">
+          <repo-hover-card :repo="row">
+            <span class="desc-text">{{ row.description || '-' }}</span>
+          </repo-hover-card>
+        </template>
+      </el-table-column>
       <el-table-column prop="language" label="Language" width="100" />
       <el-table-column prop="stars" label="Stars" width="90" sortable />
       <el-table-column prop="forks" label="Forks" width="90" />
@@ -122,11 +139,17 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Plus, Download, Upload } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import { listRepos, collectRepo, refreshRepo, deleteRepo, exportRepos, importRepos } from '../api'
+import RepoHoverCard from '../components/RepoHoverCard.vue'
 import { useUser } from '../stores/user'
 
 const { isAdmin } = useUser()
 
 const query = reactive({ platform: '', keyword: '', language: '', source: '' })
+
+const languages = [
+  'JavaScript', 'TypeScript', 'Python', 'Go', 'Java', 'C', 'C++', 'C#', 'Rust', 'Ruby',
+  'PHP', 'Swift', 'Kotlin', 'Dart', 'Scala', 'Lua', 'Shell', 'HTML', 'CSS', 'Vue'
+]
 const items = ref([])
 const page = ref(1)
 const size = ref(10)
@@ -340,6 +363,12 @@ onMounted(loadData)
   margin-top: 16px;
   display: flex;
   justify-content: flex-end;
+}
+.desc-text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .import-section {
   margin-bottom: 16px;

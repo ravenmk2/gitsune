@@ -1,7 +1,10 @@
 <template>
   <el-container class="admin-layout">
     <el-aside width="210px" class="aside">
-      <div class="brand">Gitsune</div>
+      <div class="brand">
+        <img src="/favicon.svg" alt="Gitsune" class="brand-logo" />
+        <span>Gitsune</span>
+      </div>
       <el-menu :default-active="route.path" router background-color="#001529" text-color="#bfcbd9" active-text-color="#409eff">
         <el-menu-item index="/repos">
           <el-icon><Folder /></el-icon>
@@ -25,9 +28,21 @@
       <el-header class="header">
         <span class="header-title">Git Repository Collection</span>
         <div class="header-right">
-          <span class="username">{{ user?.username }}</span>
-          <el-button link type="primary" @click="pwdDialogVisible = true">Change Password</el-button>
-          <el-button link type="danger" @click="onLogout">Log Out</el-button>
+          <el-dropdown trigger="click" @command="onUserCommand">
+            <span class="username-trigger">
+              <el-avatar :size="28" class="user-avatar">
+                <el-icon><UserFilled /></el-icon>
+              </el-avatar>
+              {{ user?.username }}
+              <el-icon><ArrowDown /></el-icon>
+            </span>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="password">Change Password</el-dropdown-item>
+                <el-dropdown-item command="logout" divided>Log Out</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </div>
       </el-header>
       <el-main class="main">
@@ -56,6 +71,7 @@
 import { reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Folder, Timer, User, Setting, UserFilled, ArrowDown } from '@element-plus/icons-vue'
 import { logout, changePassword, TOKEN_KEY } from '../api'
 import { useUser } from '../stores/user'
 
@@ -66,6 +82,14 @@ const { user, isAdmin, clearUser } = useUser()
 const pwdDialogVisible = ref(false)
 const pwdLoading = ref(false)
 const pwdForm = reactive({ old_password: '', new_password: '' })
+
+function onUserCommand(command) {
+  if (command === 'password') {
+    pwdDialogVisible.value = true
+  } else if (command === 'logout') {
+    onLogout()
+  }
+}
 
 async function onChangePassword() {
   if (!pwdForm.old_password || !pwdForm.new_password) {
@@ -111,11 +135,19 @@ async function onLogout() {
   background: #001529;
 }
 .brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   color: #fff;
   font-size: 20px;
   font-weight: 600;
-  text-align: center;
-  line-height: 60px;
+  padding-left: 20px;
+  height: 60px;
+}
+.brand-logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
 }
 .aside :deep(.el-menu) {
   border-right: none;
@@ -136,8 +168,20 @@ async function onLogout() {
   align-items: center;
   gap: 12px;
 }
-.username {
+.username-trigger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
   color: #606266;
+  outline: none;
+}
+.user-avatar {
+  background: #409eff;
+  color: #fff;
+}
+.username-trigger:hover {
+  color: #409eff;
 }
 .main {
   background: #f5f7fa;
