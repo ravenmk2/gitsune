@@ -120,7 +120,7 @@ const maxLangCount = computed(() => Math.max(1, ...(overview.value.languages || 
 
 function platformTagStyle(platform) {
   const color = { github: '#1b1f23', gitlab: '#fc6d26', gitee: '#c71d23' }[platform] || '#909399'
-  return { backgroundColor: color, borderColor: color, color: '#fff' }
+  return { backgroundColor: color, borderColor: color, color: '#fff', width: '56px', justifyContent: 'center' }
 }
 
 function formatCount(n) {
