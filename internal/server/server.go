@@ -59,6 +59,8 @@ func (s *Server) routes() {
 		authed.POST("/repo/list", s.listRepos)
 		authed.POST("/repo/get", s.getRepo)
 		authed.POST("/repo/export", s.exportRepos)
+
+		authed.POST("/stats/overview", s.statsOverview)
 	}
 
 	// 管理员专属

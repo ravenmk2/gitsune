@@ -6,15 +6,16 @@ const routes = [
   {
     path: '/',
     component: () => import('../layouts/AdminLayout.vue'),
-    redirect: '/repos',
+    redirect: '/home',
     children: [
+      { path: 'home', name: 'home', component: () => import('../views/Home.vue'), meta: { title: 'Home' } },
       { path: 'repos', name: 'repos', component: () => import('../views/RepoList.vue'), meta: { title: 'Repositories' } },
       { path: 'task-logs', name: 'task-logs', component: () => import('../views/TaskLog.vue'), meta: { title: 'Task Logs', requiresAdmin: true } },
       { path: 'users', name: 'users', component: () => import('../views/UserList.vue'), meta: { title: 'Users', requiresAdmin: true } },
       { path: 'settings', name: 'settings', component: () => import('../views/Settings.vue'), meta: { title: 'Settings', requiresAdmin: true } }
     ]
   },
-  { path: '/:pathMatch(.*)*', redirect: '/repos' }
+  { path: '/:pathMatch(.*)*', redirect: '/home' }
 ]
 
 const router = createRouter({
@@ -34,10 +35,10 @@ router.beforeEach((to) => {
     try {
       const user = JSON.parse(localStorage.getItem(USER_KEY))
       if (user?.role !== 'admin') {
-        return { path: '/repos' }
+        return { path: '/home' }
       }
     } catch {
-      return { path: '/repos' }
+      return { path: '/home' }
     }
   }
   return true

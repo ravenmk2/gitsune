@@ -67,6 +67,9 @@ export const deleteRepo = (id) => http.post('/repo/delete', { id })
 export const exportRepos = (platforms) => http.post('/repo/export', platforms ? { platforms } : {})
 export const importRepos = (payload) => http.post('/repo/import', payload)
 
+// Stats
+export const getStatsOverview = () => http.post('/stats/overview')
+
 // Tasks
 export const startTask = (type) => http.post('/task/start', { type })
 export const listTaskLogs = (params) => http.post('/task-log/list', params)

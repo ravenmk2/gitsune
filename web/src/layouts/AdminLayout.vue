@@ -6,6 +6,10 @@
         <span>Gitsune</span>
       </div>
       <el-menu :default-active="route.path" router background-color="#001529" text-color="#bfcbd9" active-text-color="#409eff">
+        <el-menu-item index="/home">
+          <el-icon><HomeFilled /></el-icon>
+          <span>Home</span>
+        </el-menu-item>
         <el-menu-item index="/repos">
           <el-icon><Folder /></el-icon>
           <span>Repositories</span>
@@ -71,7 +75,7 @@
 import { reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Folder, Timer, User, Setting, UserFilled, ArrowDown } from '@element-plus/icons-vue'
+import { HomeFilled, Folder, Timer, User, Setting, UserFilled, ArrowDown } from '@element-plus/icons-vue'
 import { logout, changePassword, TOKEN_KEY } from '../api'
 import { useUser } from '../stores/user'
 
