@@ -1,7 +1,11 @@
 .git
+.github
 docs
 data
 dist
+third_party
+Dockerfile
+build.sh
 web/node_modules
 web/dist
 web/licenses.txt
