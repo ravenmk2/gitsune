@@ -49,10 +49,10 @@
           </repo-hover-card>
         </template>
       </el-table-column>
-      <el-table-column prop="language" label="Language" width="100" />
+      <el-table-column prop="language" label="Language" width="110" show-overflow-tooltip />
       <el-table-column prop="stars" label="Stars" width="90" sortable="custom" />
       <el-table-column prop="forks" label="Forks" width="90" sortable="custom" />
-      <el-table-column label="License" width="120">
+      <el-table-column label="License" width="120" show-overflow-tooltip>
         <template #default="{ row }">{{ row.license || '-' }}</template>
       </el-table-column>
       <el-table-column label="Source" width="110">
