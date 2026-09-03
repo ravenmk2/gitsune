@@ -60,7 +60,7 @@
           <el-tag :type="sourceTagType(row.source)" effect="plain">{{ sourceLabel(row.source) }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="Last Synced" width="170">
+      <el-table-column label="Last Synced" width="190">
         <template #default="{ row }">{{ formatTime(row.refreshed_at) }}</template>
       </el-table-column>
       <el-table-column v-if="isAdmin" label="Actions" width="140">
@@ -84,8 +84,8 @@
       />
     </div>
 
-    <el-dialog v-model="collectVisible" title="Collect Repo" width="480px">
-      <el-input v-model="collectUrl" placeholder="Enter a repo URL, e.g. https://github.com/owner/repo" />
+    <el-dialog v-model="collectVisible" title="Collect Repo" width="480px" @opened="collectInputRef?.focus()">
+      <el-input ref="collectInputRef" v-model="collectUrl" placeholder="Enter a repo URL, e.g. https://github.com/owner/repo" />
       <template #footer>
         <el-button @click="collectVisible = false">Cancel</el-button>
         <el-button type="primary" :loading="collecting" @click="onCollect">Submit</el-button>
@@ -159,6 +159,7 @@ const sort = reactive({ by: '', order: '' })
 const collectVisible = ref(false)
 const collectUrl = ref('')
 const collecting = ref(false)
+const collectInputRef = ref(null)
 
 const exportVisible = ref(false)
 const exportPlatforms = ref(['github', 'gitlab', 'gitee'])

@@ -16,7 +16,7 @@
       <el-card shadow="hover" class="stat-card">
         <div class="platform-counts">
           <div v-for="p in overview.platforms" :key="p.name" class="platform-count">
-            <el-tag size="small" :style="platformTagStyle(p.name)">{{ p.name }}</el-tag>
+            <el-tag :style="platformTagStyle(p.name)">{{ p.name }}</el-tag>
             <span class="platform-num">{{ p.count }}</span>
           </div>
           <span v-if="!overview.platforms?.length" class="empty-hint">No data</span>
@@ -46,7 +46,7 @@
         <template #header>Recently Added</template>
         <div v-if="overview.latest_repos?.length" class="repo-list">
           <div v-for="r in overview.latest_repos" :key="r.id" class="repo-row">
-            <el-tag size="small" :style="platformTagStyle(r.platform)" class="repo-platform">{{ r.platform }}</el-tag>
+            <el-tag :style="platformTagStyle(r.platform)" class="repo-platform">{{ r.platform }}</el-tag>
             <repo-hover-card :repo="r" class="repo-name">
               <el-link type="primary" :href="r.url" target="_blank" underline="never">
                 {{ r.owner }}/{{ r.name }}

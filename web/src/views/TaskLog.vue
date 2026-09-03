@@ -43,10 +43,10 @@
         <template #default="{ row }">{{ duration(row) }}</template>
       </el-table-column>
       <el-table-column prop="message" label="Message" min-width="200" show-overflow-tooltip />
-      <el-table-column label="Started At" width="170">
+      <el-table-column label="Started At" width="190">
         <template #default="{ row }">{{ formatTime(row.started_at) }}</template>
       </el-table-column>
-      <el-table-column label="Finished At" width="170">
+      <el-table-column label="Finished At" width="190">
         <template #default="{ row }">{{ formatTime(row.finished_at) }}</template>
       </el-table-column>
       <template #empty>No data</template>

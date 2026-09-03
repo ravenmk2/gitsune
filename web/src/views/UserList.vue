@@ -10,12 +10,12 @@
       <el-table-column prop="username" label="Username" min-width="160" />
       <el-table-column label="Role" width="120">
         <template #default="{ row }">
-          <el-tag :type="row.role === 'admin' ? 'danger' : 'info'">
+          <el-tag :type="row.role === 'admin' ? 'primary' : 'info'">
             {{ row.role === 'admin' ? 'Admin' : 'User' }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="Created At" width="180">
+      <el-table-column label="Created At" width="190">
         <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
       </el-table-column>
       <el-table-column label="Actions" width="320" fixed="right">

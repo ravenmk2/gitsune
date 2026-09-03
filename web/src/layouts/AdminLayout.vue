@@ -179,6 +179,8 @@ async function onLogout() {
   cursor: pointer;
   color: #606266;
   outline: none;
+  user-select: none;
+  caret-color: transparent;
 }
 .user-avatar {
   background: #409eff;
