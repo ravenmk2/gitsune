@@ -1,6 +1,8 @@
+//go:build embed
+
 // Package web 内嵌前端构建产物。
-// dist 由 web 前端构建生成（pnpm build）；仓库中保留 dist/.gitkeep 占位，
-// 使未构建前端时 go build 仍可编译。
+// 本文件仅在显式传入 -tags embed 时参与编译（正式发布构建：build.sh / Dockerfile / CI），
+// go:embed 要求此时 web/dist 已构建；默认编译走 embed_stub.go 的空占位。
 package web
 
 import "embed"

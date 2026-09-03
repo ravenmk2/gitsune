@@ -14,15 +14,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.25"
-
-      - name: Go vet and build (CGO disabled)
-        run: |
-          go vet ./...
-          CGO_ENABLED=0 go build ./...
-
       - uses: pnpm/action-setup@v4
         with:
           version: 10
@@ -33,11 +24,21 @@ jobs:
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
 
+      # 前端先行：后面的 -tags embed 构建要求 web/dist 已生成
       - name: Frontend build
         working-directory: web
         run: |
           pnpm install --frozen-lockfile
           pnpm build
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - name: Go vet and build (CGO disabled)
+        run: |
+          go vet ./...
+          CGO_ENABLED=0 go build -tags embed ./...
 
   image:
     needs: test

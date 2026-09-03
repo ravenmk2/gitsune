@@ -1,4 +1,6 @@
-# Frontend build
+# ==============================================================================
+# Stage: web — 前端构建（产物 web/dist + 依赖许可证文本）
+# ==============================================================================
 FROM node:20-alpine AS web
 WORKDIR /build/web
 COPY web/package.json web/pnpm-lock.yaml* web/pnpm-workspace.yaml* ./
@@ -8,9 +10,11 @@ RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
 COPY web/ ./
 RUN pnpm build && pnpm gen-licenses
 
-# Backend build with CGO (gcc included) -> mattn/go-sqlite3 driver.
-# The frontend bundle is embedded via web/embed.go, so dist is copied from the web stage.
-# Third-party license texts are generated during the build and shipped in the image.
+# ==============================================================================
+# Stage: backend — Go 后端构建（CGO，mattn/go-sqlite3 驱动）
+# 前端产物经 web/embed.go（-tags embed）内嵌，dist 从 web 阶段拷贝；
+# 第三方许可证文本在构建时生成并随镜像分发。
+# ==============================================================================
 FROM golang:1.27-bookworm AS backend
 ENV GOPROXY=https://goproxy.cn,direct
 WORKDIR /build
@@ -25,9 +29,11 @@ COPY --from=web /build/web/licenses.txt third_party/web.txt
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=1 go run github.com/google/go-licenses/v2@v2.0.1 save ./... --save_path=third_party/go --force \
-    && CGO_ENABLED=1 go build -trimpath -ldflags "-s -w" -o /out/gitsune ./cmd/gitsune
+    && CGO_ENABLED=1 go build -tags embed -trimpath -ldflags "-s -w" -o /out/gitsune ./cmd/gitsune
 
-# Runtime (/app layout, container user 1000:1000)
+# ==============================================================================
+# Stage: runtime — 运行镜像（/app 布局，容器内用户 1000:1000）
+# ==============================================================================
 FROM debian:bookworm-slim
 ARG VERSION=dev
 ARG REVISION=unknown

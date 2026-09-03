@@ -11,16 +11,14 @@ fi
 cd web
 $PNPM install
 $PNPM build
-# vite build empties outDir; keep the placeholder so fresh clones can compile (go:embed)
-touch dist/.gitkeep
 cd ..
 
-# Backend: default to CGO_ENABLED=0 (pure-Go modernc.org/sqlite driver),
-# override with e.g. CGO_ENABLED=1 ./build.sh when a C toolchain is available.
+# Backend: -tags embed 内嵌前端产物（web/embed.go）；默认 CGO_ENABLED=0
+#（纯 Go modernc.org/sqlite 驱动），本机有 C 工具链时可 CGO_ENABLED=1 ./build.sh。
 bin="dist/gitsune"
 if [ "$(go env GOOS)" = "windows" ]; then
   bin="dist/gitsune.exe"
 fi
 mkdir -p dist
-CGO_ENABLED="${CGO_ENABLED:-0}" go build -trimpath -ldflags "-s -w" -o "$bin" ./cmd/gitsune
+CGO_ENABLED="${CGO_ENABLED:-0}" go build -tags embed -trimpath -ldflags "-s -w" -o "$bin" ./cmd/gitsune
 echo "Built $bin"

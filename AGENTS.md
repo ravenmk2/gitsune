@@ -13,7 +13,7 @@ internal/auth/         JWT HS256、bcrypt、Gin 中间件（登录校验、Admin
 internal/platform/     平台采集器：Collector 接口 + Registry；github/gitlab/gitee 实现
 internal/task/         任务 runner（per-type 互斥锁）+ cron 调度器
 internal/server/       Gin 路由、响应信封 helpers、各模块 handler、SPA 静态服务
-web/                   前端源码；embed.go 用 //go:embed all:dist 内嵌构建产物
+web/                   前端源码；embed.go（-tags embed 时）用 //go:embed all:dist 内嵌构建产物，embed_stub.go 为默认空占位
 docs/conventions/      API 设计规范（必须遵守）
 ```
 
@@ -23,19 +23,22 @@ docs/conventions/      API 设计规范（必须遵守）
 # 一键构建（前端 + 单二进制，等价于下面两步）
 ./build.sh
 
-# 前端（产物输出 web/dist；未构建时 dist 仅有 .gitkeep，页面不可用但可编译）
+# 前端（产物输出 web/dist，正式发布构建经 -tags embed 内嵌进二进制）
 cd web && pnpm install && pnpm build && cd ..
 
 # 后端
 go vet ./...
-go build -o dist/gitsune ./cmd/gitsune  # 本机有 gcc 时走 mattn/go-sqlite3
-CGO_ENABLED=0 go build ./...            # 无 CGO 时自动回退 modernc.org/sqlite
+go build -tags embed -o dist/gitsune ./cmd/gitsune  # 内嵌前端的正式二进制；本机有 gcc 时走 mattn/go-sqlite3
+CGO_ENABLED=0 go build ./...                        # 无 CGO 时自动回退 modernc.org/sqlite
+
+# 说明：web/embed.go 带 //go:build embed 约束，只有 -tags embed 才编译它（要求 web/dist 已构建）；
+# 默认编译走 web/embed_stub.go 空占位，未构建前端也能编译，页面返回 "frontend assets not built"，API 正常。
 
 # Docker
 docker build -t gitsune .
 ```
 
-CI：`.github/workflows/build-image.yml`，push 到 master/main 时先跑测试（go vet + CGO=0 构建 + 前端构建）再构建镜像推送 `ghcr.io/ravenmk2/gitsune:dev`；打 SemVer 版本 tag（`vX.Y.Z`，如 `v1.4.2`）时推送 `ghcr.io/ravenmk2/gitsune:vX.Y.Z` 与 `:latest`。
+CI：`.github/workflows/build-image.yml`，push 到 master/main 时先跑测试（前端构建 → go vet + CGO=0 `-tags embed` 构建）再构建镜像推送 `ghcr.io/ravenmk2/gitsune:dev`；打 SemVer 版本 tag（`vX.Y.Z`，如 `v1.4.2`）时推送 `ghcr.io/ravenmk2/gitsune:vX.Y.Z` 与 `:latest`。
 
 改动后必须跑 `go vet ./...` 和 `CGO_ENABLED=0 go build ./...`；涉及 API 的改动需启动服务用 curl 实测对应端点。
 
@@ -66,7 +69,7 @@ CI：`.github/workflows/build-image.yml`，push 到 master/main 时先跑测试�
 - 路由守卫在 `web/src/router/index.js`：admin 页面加 `meta.requiresAdmin`
 - 时间显示用 dayjs 转本地时区
 - 开发调试：`pnpm dev`，vite 已代理 `/api` → `http://localhost:8080`
-- `web/dist/.gitkeep` 必须保留（`go:embed` 要求 dist 非空）
+- **前端内嵌走 build tag**：`-tags embed` 才编译 `web/embed.go`（`go:embed all:dist`，要求前端已构建），默认编译用 `web/embed_stub.go` 空占位；发布构建（build.sh / Dockerfile / CI 镜像）必须带 `-tags embed`，否则会产出无前端的二进制
 
 ## 配置（环境变量）
 
