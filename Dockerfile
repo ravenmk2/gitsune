@@ -23,7 +23,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     go mod download
 COPY cmd/ cmd/
 COPY internal/ internal/
-COPY web/embed.go web/
+COPY web/embed.go web/embed_stub.go web/
 COPY --from=web /build/web/dist/ web/dist/
 COPY --from=web /build/web/licenses.txt third_party/web.txt
 RUN --mount=type=cache,target=/go/pkg/mod \
